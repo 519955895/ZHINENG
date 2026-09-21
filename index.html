@@ -1,0 +1,2098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新闻因果关系抽取可视化平台</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --panel: #ffffff;
+    --border: #e3e8f0;
+    --text: #2b3445;
+    --text-sub: #7a8599;
+    --primary: #3b6ef5;
+    --primary-soft: #eaf0ff;
+    --accent: #f59e0b;
+    --green: #10b981;
+    --red: #ef4444;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ===== 顶部栏 ===== */
+  header {
+    background: linear-gradient(135deg, #1e3a8a, #3b6ef5);
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+  header .sub { font-size: 12px; opacity: .75; margin-top: 2px; }
+  .stats { display: flex; gap: 12px; }
+  .stat-card {
+    background: rgba(255,255,255,.12);
+    border-radius: 8px;
+    padding: 6px 14px;
+    text-align: center;
+    min-width: 72px;
+  }
+  .stat-card .num { font-size: 18px; font-weight: 700; }
+  .stat-card .label { font-size: 11px; opacity: .8; }
+
+  /* ===== 三栏布局 ===== */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 12px;
+    padding: 12px;
+    overflow: hidden;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* ===== 左栏：新闻列表 ===== */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .chip {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text-sub);
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .news-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .news-card:hover { border-color: var(--primary); }
+  .news-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+  /* ===== 列表卡片状态体系：未入画布 / 画布中 / 已展开 / 已移除 ===== */
+  .news-card { position: relative; border-left-width: 3px; overflow: hidden; }
+  .news-card.st-none { border-left-color: var(--border); }
+  .news-card.st-open { border-left-color: #93b4f8; }
+  .news-card.st-expanded { border-left-color: var(--primary); background: #f5f8ff; }
+  .news-card.st-hidden { border-left-color: #cbd5e1; background: #f6f7f9; }
+  .news-card.st-hidden .ntitle, .news-card.st-hidden .nid { color: #9aa5b5; }
+  .news-card.st-hidden.selected { background: var(--primary-soft); }
+  .news-card.selected { border-left-color: var(--primary); }
+  .news-card.selected.st-hidden { border-left-color: var(--primary); }
+  .st-tag {
+    position: absolute; top: 0; right: 0; font-size: 9px; line-height: 1;
+    padding: 3px 7px; border-radius: 0 0 0 6px; letter-spacing: .5px;
+  }
+  .st-tag.t-exp { background: var(--primary); color: #fff; }
+  .st-tag.t-open { background: var(--primary-soft); color: var(--primary); }
+  .st-tag.t-hid { background: #e2e8f0; color: #64748b; }
+  .scope-chip { font-size: 11px; }
+  /* ===== 新闻搜索框 ===== */
+  .search-wrap {
+    position: relative; margin: 10px 14px 0; flex-shrink: 0;
+  }
+  .search-wrap .search-ico {
+    position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; opacity: .55; pointer-events: none;
+  }
+  .search-wrap input {
+    width: 100%; box-sizing: border-box; font-size: 12px; color: var(--text);
+    padding: 6px 26px 6px 26px; border: 1px solid var(--border); border-radius: 7px;
+    background: #f8fafc; outline: none; transition: border-color .15s, background .15s;
+  }
+  .search-wrap input::placeholder { color: #a5b0c0; }
+  .search-wrap input:focus { border-color: var(--primary); background: #fff; }
+  .search-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    border: none; background: none; color: var(--text-sub); cursor: pointer;
+    font-size: 13px; padding: 0 3px; display: none; line-height: 1;
+  }
+  .search-clear:hover { color: var(--red); }
+  .news-card .nid { font-size: 11px; color: var(--text-sub); }
+  .news-card .ntitle { font-size: 13px; font-weight: 600; margin: 4px 0 6px; line-height: 1.5; }
+  .news-card .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+  .badge.cat-事故 { background: #fef2f2; color: var(--red); }
+  .badge.cat-社会 { background: #eff6ff; color: var(--primary); }
+  .badge.cat-经济 { background: #fffbeb; color: var(--accent); }
+  .badge.cat-健康 { background: #ecfdf5; color: var(--green); }
+  .badge.cat-环境 { background: #f0fdf4; color: #16a34a; }
+  .badge.cat-法律 { background: #f5f3ff; color: #7c3aed; }
+
+  /* ===== 中栏：无限画布 ===== */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .tab {
+    padding: 9px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-sub);
+    border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+  #canvas-view {
+    flex: 1; position: relative; overflow: hidden; cursor: grab;
+    background:
+      linear-gradient(90deg, #edf1f7 1px, transparent 1px),
+      linear-gradient(#edf1f7 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  #canvas-view.panning { cursor: grabbing; }
+  #canvas-view.connecting { cursor: crosshair; }
+  #edges-svg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    overflow: visible; pointer-events: none; transform-origin: 0 0;
+  }
+  #world { position: absolute; top: 0; left: 0; width: 0; height: 0; transform-origin: 0 0; }
+  #fx-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 95; }
+  #laser-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 96; }
+  #laser-svg polyline {
+    fill: none; stroke: var(--red); stroke-width: 3.5; stroke-linecap: round;
+    stroke-linejoin: round; opacity: .9;
+    filter: drop-shadow(0 0 4px rgba(239,68,68,.8));
+  }
+
+  /* 新闻展示块（画布卡片，可折叠/展开簇） */
+  .news-block {
+    position: absolute; width: 240px; height: 96px;
+    background: #fff; border: 1.5px solid #c7d2e3; border-radius: 12px;
+    padding: 9px 13px; cursor: grab; overflow: hidden;
+    box-shadow: 0 2px 8px rgba(30,50,90,.10);
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .news-block:active { cursor: grabbing; }
+  .news-block:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(59,110,245,.18); }
+  .news-block.current { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 4px 16px rgba(59,110,245,.28); }
+  .news-block.expanded { border-left: 4px solid var(--primary); }
+  .news-block.doomed { border-color: var(--red); background: #fee2e2; }
+  .news-block .nb-head { display: flex; align-items: center; gap: 8px; }
+  .news-block .nb-head b { font-size: 12px; color: var(--primary); }
+  .news-block .nb-title {
+    font-size: 12px; font-weight: 600; line-height: 1.45; margin-top: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .news-block .nb-meta { position: absolute; left: 13px; right: 13px; bottom: 7px;
+    display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-sub); }
+  .news-block .nb-toggle { margin-left: auto; color: var(--primary); font-size: 10.5px; white-space: nowrap; }
+  .news-block.doomed .nb-toggle { color: var(--red); }
+
+  /* 空画布提示 */
+  #empty-hint {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: #98a5b8; font-size: 14px; pointer-events: none; z-index: 5; text-align: center;
+  }
+  #empty-hint .big { font-size: 44px; opacity: .5; }
+  #empty-hint .sub { font-size: 12px; color: #b6c0cf; }
+
+  /* 事件节点 */
+  .dag-node {
+    position: absolute; width: 210px; height: 76px;
+    background: #fff; border: 1.5px solid #c7d2e3; border-radius: 10px;
+    padding: 7px 12px; cursor: move; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(30,50,90,.08);
+    transition: box-shadow .15s, border-color .15s;
+  }
+  .dag-node:hover { border-color: var(--primary); box-shadow: 0 4px 14px rgba(59,110,245,.18); }
+  .dag-node.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 4px 16px rgba(59,110,245,.28); }
+  /* 选中因果边的两端节点：橙色描边呼应 */
+  .dag-node.edge-endpoint { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(245,158,11,.22), 0 4px 16px rgba(245,158,11,.25); }
+
+  /* ===== 连边证据联动 ===== */
+  #edge-tip {
+    position: absolute; z-index: 120; max-width: 340px; display: none;
+    background: rgba(30,41,59,.96); color: #f1f5f9; font-size: 12px; line-height: 1.6;
+    padding: 8px 11px; border-radius: 8px; pointer-events: none;
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  }
+  #edge-tip .et-id { color: #fbbf24; font-weight: 700; margin-bottom: 3px; }
+  .edge-badge { cursor: pointer; }
+  .edge-badge circle { fill: #fff; stroke-width: 1.5; }
+  .edge-badge text { font-size: 9px; font-weight: 700; fill: #475569; pointer-events: none; }
+
+  /* 详情面板：因果关系证据卡 */
+  .rel-card {
+    border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .rel-card .rc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .rel-card .rc-title { font-size: 13px; font-weight: 700; color: #b45309; }
+  .rel-card .rc-close { border: none; background: none; font-size: 15px; color: #92400e; cursor: pointer; padding: 0 3px; }
+  .rel-card .rc-close:hover { color: #b45309; }
+  .rel-card .rc-evs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .rel-card .rc-ev {
+    background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .rel-card .rc-ev:hover { border-color: var(--accent); }
+  .rel-card .rc-ev .rc-role { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-right: 6px; }
+  .rel-card .rc-ev .rc-role.cause { background: #dbeafe; color: var(--primary); }
+  .rel-card .rc-ev .rc-role.effect { background: #fef3c7; color: #b45309; }
+  .rel-card .rc-ev .rc-desc { font-size: 12px; line-height: 1.5; display: inline; }
+  .rel-card .rc-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .rel-card .rc-meta .m {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: #fff; border: 1px solid var(--border); color: var(--text-sub);
+  }
+  .rel-card .rc-meta .m b { color: var(--text); }
+  .rel-card .rc-label { font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; display: inline-block; padding: 1px 8px; border-radius: 4px; margin-bottom: 5px; }
+  .rel-card .rc-src { font-size: 10.5px; color: var(--text-sub); margin-top: 5px; }
+  .dag-node .n-top { display: flex; justify-content: space-between; align-items: center; }
+  .dag-node .n-id { font-size: 12px; font-weight: 700; color: var(--primary); }
+  .dag-node .n-chain { font-size: 10px; color: #94a3b8; }
+  .dag-node .n-desc { font-size: 11.5px; line-height: 1.45; margin-top: 3px; }
+  .dag-node .n-type { font-size: 10px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 连线端口：右侧输出条 / 左侧输入点 */
+  .port { position: absolute; background: #c7d2e3; transition: background .15s; }
+  .port-out { width: 9px; height: 16px; right: -5px; top: calc(50% - 8px); border-radius: 3px; cursor: crosshair; }
+  .port-in { width: 9px; height: 9px; left: -5px; top: calc(50% - 5px); border-radius: 50%; }
+  .dag-node:hover .port-out { background: var(--primary); }
+
+  /* ===== 可折叠悬浮工具栏 ===== */
+  #float-toolbar {
+    position: absolute; top: 12px; left: 12px; z-index: 100;
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.94); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 5px; box-shadow: 0 4px 16px rgba(30,50,90,.12);
+  }
+  #tb-toggle {
+    width: 30px; height: 30px; border-radius: 8px; border: none;
+    background: var(--primary); color: #fff; font-size: 15px;
+    cursor: pointer; flex-shrink: 0; transition: transform .25s;
+  }
+  #float-toolbar.collapsed #tb-body { display: none; }
+  #float-toolbar.collapsed #tb-toggle { transform: rotate(-90deg); }
+  #tb-body { display: flex; align-items: center; gap: 5px; }
+  .tb-btn {
+    padding: 5px 11px; font-size: 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff; color: var(--text); cursor: pointer;
+    transition: .15s; white-space: nowrap;
+  }
+  .tb-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .tb-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .tb-sep { width: 1px; height: 18px; background: var(--border); }
+  .tb-dirty { font-size: 11px; color: #d97706; white-space: nowrap; }
+
+  /* 画布悬浮部件 */
+  #zoom-ctrl {
+    position: absolute; right: 12px; bottom: 132px; z-index: 90;
+    display: flex; align-items: center; gap: 2px;
+    background: rgba(255,255,255,.92); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px 5px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.1);
+  }
+  #zoom-ctrl button {
+    width: 24px; height: 24px; border: none; border-radius: 6px;
+    background: transparent; color: var(--text); font-size: 15px;
+    line-height: 1; cursor: pointer;
+  }
+  #zoom-ctrl button:hover { background: var(--primary-soft); color: var(--primary); }
+  #zoom-ctrl span {
+    font-size: 11px; min-width: 42px; text-align: center;
+    font-family: Consolas, monospace; color: var(--text-sub);
+  }
+  #hint {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 90; font-size: 11px; color: var(--text-sub);
+    background: rgba(255,255,255,.9); border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 14px; pointer-events: none; white-space: nowrap;
+  }
+  #toast {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%) translateY(-6px);
+    z-index: 120; font-size: 12px; color: #fff; background: rgba(30,40,60,.88);
+    border-radius: 8px; padding: 7px 16px; pointer-events: none;
+    opacity: 0; transition: opacity .2s, transform .2s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .load-error {
+    margin: 80px auto; max-width: 560px; padding: 24px 28px;
+    background: #fff5f5; border: 1px solid #fecaca; border-radius: 10px;
+    color: #b91c1c; font-size: 13px; line-height: 2;
+  }
+  .load-error code { background: #fff; padding: 1px 6px; border-radius: 4px; border: 1px solid #fecaca; }
+  #minimap {
+    position: absolute; right: 12px; bottom: 12px; z-index: 90;
+    width: 150px; height: 110px;
+    background: rgba(255,255,255,.92); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.1);
+  }
+  #minimap.collapsed { width: 34px; height: 34px; cursor: pointer; }
+  #minimap-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+  #mini-toggle {
+    position: absolute; top: 0; right: 0; z-index: 2;
+    width: 20px; height: 20px; border: none; border-radius: 0 0 0 6px;
+    background: rgba(59,110,245,.12); color: var(--primary);
+    font-size: 12px; line-height: 20px; padding: 0; cursor: pointer;
+  }
+  #mini-toggle:hover { background: rgba(59,110,245,.25); }
+  #minimap.collapsed #mini-toggle { width: 100%; height: 100%; border-radius: 0; font-size: 15px; }
+
+  .legend {
+    position: absolute; right: 12px; top: 12px; z-index: 90;
+    background: rgba(255,255,255,.92);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 11px; color: var(--text-sub);
+    display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-line { width: 26px; height: 0; border-top: 2px solid var(--primary); }
+  .legend-line.dashed { border-top-style: dashed; border-top-color: var(--accent); }
+  .legend-line.dotted { border-top-style: dotted; border-top-color: #8b5cf6; }
+
+  /* 右键菜单 */
+  #ctx-menu {
+    position: fixed; z-index: 1000; display: none;
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 4px; min-width: 170px;
+  }
+  .ctx-item { padding: 7px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+  .ctx-item:hover { background: var(--primary-soft); }
+  .ctx-item.danger { color: var(--red); }
+  .ctx-item.danger:hover { background: #fef2f2; }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+  /* ===== 右栏：详情 ===== */
+  .detail-section { margin-bottom: 14px; }
+  .detail-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 6px;
+    padding-left: 8px;
+    border-left: 3px solid var(--primary);
+  }
+  .kv { font-size: 12px; line-height: 1.8; color: var(--text); }
+  .kv .k { color: var(--text-sub); margin-right: 6px; }
+  .entity-row {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 12px; padding: 4px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .entity-type {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
+    background: #f1f5f9; color: #64748b;
+  }
+  .entity-type.t-时间 { background: #fef3c7; color: #b45309; }
+  .entity-type.t-地点 { background: #dbeafe; color: #1d4ed8; }
+  .entity-type.t-人物 { background: #fce7f3; color: #be185d; }
+  .entity-type.t-机构 { background: #d1fae5; color: #047857; }
+  .quote {
+    font-size: 12px; color: var(--text-sub);
+    background: #f8fafc; border-left: 3px solid var(--border);
+    padding: 8px 10px; border-radius: 0 6px 6px 0;
+    line-height: 1.7; margin-top: 4px;
+  }
+  #json-view {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    white-space: pre;
+    background: #1e293b; color: #e2e8f0;
+    padding: 12px; border-radius: 8px;
+    overflow-x: auto; line-height: 1.6;
+    user-select: text;
+  }
+
+  /* ===== 关系表 ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  #rel-table .ev-text { min-width: 260px; max-width: 320px; color: var(--text-sub); line-height: 1.7; word-break: break-word; }
+  #rel-table tbody tr { cursor: pointer; transition: background .12s; }
+  #rel-table tbody tr:hover { background: #f8fafc; }
+  #rel-table tbody tr.rel-hl { background: #fffbeb; box-shadow: inset 3px 0 0 var(--accent); }
+  #rel-table tbody tr.rel-hl td { border-bottom-color: #fde68a; }
+  th { background: #f8fafc; color: var(--text-sub); font-weight: 600; white-space: nowrap; }
+  .conf-bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--primary); vertical-align: middle; }
+  .del-rel {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    border: 1px solid #fecaca; background: #fff; color: var(--red); cursor: pointer;
+  }
+  .del-rel:hover { background: #fef2f2; }
+  .new-tag { font-size: 10px; color: #fff; background: var(--green); border-radius: 3px; padding: 1px 5px; margin-left: 4px; }
+
+  footer {
+    padding: 6px 20px;
+    font-size: 11px;
+    color: var(--text-sub);
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .empty-tip { color: var(--text-sub); font-size: 12px; text-align: center; padding: 40px 0; }
+  svg text { user-select: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>新闻因果关系抽取可视化平台</h1>
+    <div class="sub">无限画布 · 因果链 DAG · 人工校对（拖拽 / 连线 / 删除）</div>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="num" id="st-news">0</div><div class="label">新闻</div></div>
+    <div class="stat-card"><div class="num" id="st-event">0</div><div class="label">事件</div></div>
+    <div class="stat-card"><div class="num" id="st-rel">0</div><div class="label">因果关系</div></div>
+    <div class="stat-card"><div class="num" id="st-chain">0</div><div class="label">因果链</div></div>
+  </div>
+</header>
+
+<main>
+  <!-- 左栏：新闻列表 -->
+  <div class="panel">
+    <div class="panel-head">新闻列表 <span id="list-count" style="font-weight:400;color:var(--text-sub)"></span></div>
+    <div class="search-wrap"><span class="search-ico"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input id="news-search" type="text" placeholder="搜索新闻 ID 或标题…" autocomplete="off"><button class="search-clear" id="search-clear" title="清空">✕</button></div>
+    <div class="filter-bar" id="filter-bar" style="border-bottom:none; padding-bottom:0;"></div>
+    <div class="filter-bar" id="scope-bar"></div>
+    <div class="panel-body" id="news-list"></div>
+  </div>
+
+  <!-- 中栏：可视化 -->
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="graph">因果链画布（DAG）</div>
+      <div class="tab" data-tab="table">因果关系表</div>
+    </div>
+    <div id="view-graph" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div id="canvas-view">
+        <!-- 可折叠悬浮工具栏 -->
+        <div id="float-toolbar">
+          <button id="tb-toggle" title="展开/折叠工具栏">☰</button>
+          <div id="tb-body">
+            <button class="tb-btn" id="tb-fit-all">总览全部</button>
+            <button class="tb-btn" id="tb-reset">重置视图</button>
+            <button class="tb-btn" id="tb-layout">重排布局</button>
+            <span class="tb-sep"></span>
+            <button class="tb-btn" id="tb-undo" disabled title="撤销上一步（Ctrl+Z）">撤销</button>
+            <button class="tb-btn" id="tb-redo" disabled title="重做上一步（Ctrl+Shift+Z / Ctrl+Y）">重做</button>
+            <span class="tb-dirty" id="tb-dirty" style="display:none">● 已修改</span>
+          </div>
+        </div>
+
+        <svg id="edges-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="world"></div>
+        <canvas id="fx-canvas"></canvas>
+        <svg id="laser-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="empty-hint">
+          <div class="big">🗞️</div>
+          <div>画布为空 —— 点击左侧新闻列表，将新闻以展示块形式放到画布</div>
+          <div class="sub">点击展示块展开事件簇，再次点击收起；展示块与事件节点均可自由拖动</div>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><span class="legend-line"></span>直接因果 direct</div>
+          <div class="legend-item"><span class="legend-line dashed"></span>间接因果 indirect</div>
+          <div class="legend-item"><span class="legend-line dotted"></span>可能性/条件模态</div>
+          <div class="legend-item">右键节点/连线可编辑</div>
+        </div>
+        <div id="hint">※ 右键此处更多功能 ※</div>
+        <div id="toast"></div>
+        <div id="zoom-ctrl">
+          <button id="tb-zoom-out" title="缩小">−</button>
+          <span id="tb-zoom-val">100%</span>
+          <button id="tb-zoom-in" title="放大">+</button>
+        </div>
+        <div id="minimap"><canvas id="minimap-canvas"></canvas><button id="mini-toggle" title="折叠缩略图">−</button></div>
+        <div id="edge-tip"></div>
+      </div>
+    </div>
+    <div id="view-table" style="flex:1;display:none;overflow:auto">
+      <div class="panel-body"><table id="rel-table"></table></div>
+    </div>
+  </div>
+
+  <!-- 右栏：详情 -->
+  <div class="panel">
+    <div class="panel-head">详情面板 <span id="detail-toggle" style="cursor:pointer;font-weight:400;color:var(--primary);font-size:11px">查看JSON</span></div>
+    <div class="panel-body" id="detail-body">
+      <div class="empty-tip">点击左侧新闻，再点击图中事件节点查看详情</div>
+    </div>
+  </div>
+</main>
+
+<footer>无限画布版 · 画布上的修改自动保存到浏览器 · 右键划过新闻簇可将其移出画布（数据不变） · Ctrl+Z 撤销 / Ctrl+Shift+Z 重做（最多50步）</footer>
+<div id="ctx-menu"></div>
+
+<script src="新闻因果抽取结果.js"></script>
+<script>
+/* ============================================================
+ * 数据来源：外部数据文件 新闻因果抽取结果.js（window.NEWS_DATA）
+ * 说明：用 <script src> 引用而非 fetch，双击以 file:// 打开也可加载
+ * ============================================================ */
+let DATA = window.NEWS_DATA || [];   // 新闻因果抽取结果
+let ORIGINAL = [];                   // 原始数据备份（撤销修改用），启动时赋值
+
+
+/* ============================================================
+ * 全局状态
+ * ============================================================ */
+const LS_KEY = "newsCausalEdits_v3", LS_HIDDEN = "newsCausalHidden_v3";
+const DATA_STAMP = window.NEWS_DATA_STAMP || "";   // 数据文件指纹：数据更新时自动作废旧缓存
+let SAVED = null;
+try { SAVED = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { SAVED = null; }
+let dataReset = false;
+if (SAVED && SAVED.stamp !== DATA_STAMP) {          // 缓存对应旧版数据 → 丢弃，避免旧文本覆盖新数据
+  localStorage.removeItem(LS_KEY);
+  SAVED = null;
+  dataReset = true;
+}
+let HIDDEN_IDS = [];
+try { HIDDEN_IDS = JSON.parse(localStorage.getItem(LS_HIDDEN) || "[]"); } catch (e) { HIDDEN_IDS = []; }
+
+let state = {
+  newsList: [],               // 当前展示的新闻（经筛选）
+  currentNews: null,          // 当前选中新闻对象
+  selectedEvent: null,        // 当前选中事件
+  selectedRel: null,          // 当前选中因果关系 {news_id, relation_id}（与选中事件互斥）
+  activeFilter: "全部",
+  listScope: "全部",          // 二级范围过滤：全部 / 画布 / 已移除
+  searchKey: "",              // 新闻列表搜索关键字（匹配 ID / 标题）
+  activeTab: "graph",
+  showJson: false,
+  /* 画布 */
+  zoom: 1, panX: 0, panY: 0,
+  nodePos: {},                // `${nid}/${eid}` -> {x,y} 世界坐标
+  clusterRect: {},            // nid -> {x,y,w,h}（展开后的簇区域，不含展示块）
+  openCards: new Set(),       // 已放置到画布的新闻（有展示块）
+  expanded: new Set(),        // 已展开簇的新闻
+  cardPos: {},                // nid -> {x,y} 展示块左上角（世界坐标）
+  cardCount: 0,               // 新放置展示块的级联偏移计数
+  drag: null, connecting: null,
+  hiddenNews: new Set(Array.isArray(HIDDEN_IDS) ? HIDDEN_IDS : []),  // 仅从画布移除（不改动数据）
+  dirty: false
+};
+
+/* ============================================================
+ * 工具函数
+ * ============================================================ */
+const $ = (sel) => document.querySelector(sel);
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+function shortDesc(desc, n = 18) {
+  return desc.length > n ? desc.slice(0, n) + "…" : desc;
+}
+function findNews(nid) { return DATA.find(n => n.news_id === nid); }
+function keyOf(nid, eid) { return nid + "/" + eid; }
+
+/* ============================================================
+ * 粒子特效
+ * ============================================================ */
+const fxc = $("#fx-canvas"), fxx = fxc.getContext("2d");
+let parts = [], fxRunning = false;
+function fxResize() { fxc.width = canvasView.clientWidth; fxc.height = canvasView.clientHeight; }
+function burst(x, y, color = "#3b6ef6") {
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 3;
+    parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, life: 1, color });
+  }
+  if (!fxRunning) { fxRunning = true; requestAnimationFrame(fxLoop); }
+}
+function fxLoop() {
+  fxx.clearRect(0, 0, fxc.width, fxc.height);
+  parts = parts.filter(p => p.life > 0);
+  parts.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.square) { p.life -= .02; }              // 参考 share.html：方块粒子无重力，缓慢淡出
+    else { p.vy += .08; p.life -= .03; }
+    fxx.globalAlpha = Math.max(0, p.life);
+    fxx.fillStyle = p.color;
+    if (p.square) fxx.fillRect(p.x, p.y, p.size, p.size);
+    else { fxx.beginPath(); fxx.arc(p.x, p.y, 3 * p.life + 1, 0, 7); fxx.fill(); }
+  });
+  fxx.globalAlpha = 1;
+  if (parts.length) requestAnimationFrame(fxLoop);
+  else { fxRunning = false; fxx.clearRect(0, 0, fxc.width, fxc.height); }
+}
+/* 删除新闻特效（参考 share.html 的 removeNode）：每个事件节点中心爆发红色方块粒子 */
+function deleteBurst(x, y, color = "#ff0000") {
+  for (let i = 0; i < 30; i++) {
+    parts.push({
+      x, y,
+      vx: (Math.random() - .5) * 8, vy: (Math.random() - .5) * 8,
+      size: Math.random() * 5 + 2, life: 1, color, square: true
+    });
+  }
+  if (!fxRunning) { fxRunning = true; requestAnimationFrame(fxLoop); }
+}
+function deleteFxForNews(nid) {
+  const news = findNews(nid);
+  if (!news) return;
+  const expanded = state.expanded.has(nid);   // 仅展开的簇对事件节点触发特效
+  let hit = false;
+  if (expanded) news.events.forEach(e => {
+    const p = state.nodePos[keyOf(nid, e.event_id)];
+    if (!p) return;
+    hit = true;
+    deleteBurst(state.panX + (p.x + NODE_W / 2) * state.zoom,
+                state.panY + (p.y + NODE_H / 2) * state.zoom);
+  });
+  if (!hit) {   // 未展开：只在展示块中心爆发一次
+    const c = state.cardPos[nid];
+    if (c) deleteBurst(state.panX + (c.x + CARD_W / 2) * state.zoom,
+                       state.panY + (c.y + CARD_H / 2) * state.zoom);
+  }
+}
+
+/* ============================================================
+ * 提示 Toast + 右键菜单
+ * ============================================================ */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+function openMenu(x, y, items) {
+  const m = $("#ctx-menu");
+  m.innerHTML = items.map((it, i) => it.sep ? `<div class="ctx-sep"></div>`
+    : `<div class="ctx-item ${it.danger ? "danger" : ""}" data-i="${i}">${esc(it.label)}</div>`).join("");
+  m.style.display = "block";
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
+  m.style.top = Math.min(y, innerHeight - r.height - 8) + "px";
+  m.querySelectorAll(".ctx-item").forEach(el => {
+    el.onclick = () => { closeMenu(); items[+el.dataset.i].fn(); };
+  });
+}
+function closeMenu() { $("#ctx-menu").style.display = "none"; }
+document.addEventListener("mousedown", e => { if (!e.target.closest("#ctx-menu")) closeMenu(); }, true);
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeMenu(); cancelConnect(); }
+});
+
+/* ============================================================
+ * 顶部统计
+ * ============================================================ */
+function renderStats() {
+  $("#st-news").textContent = DATA.length;
+  $("#st-event").textContent = DATA.reduce((s, n) => s + n.events.length, 0);
+  $("#st-rel").textContent = DATA.reduce((s, n) => s + n.causal_relations.length, 0);
+  $("#st-chain").textContent = DATA.reduce((s, n) => s + n.chains.length, 0);
+}
+
+/* ============================================================
+ * 左栏：分类筛选 + 新闻列表
+ * ============================================================ */
+function renderFilter() {
+  const cats = ["全部", ...new Set(DATA.map(n => n.category))];
+  $("#filter-bar").innerHTML = cats.map(c =>
+    `<span class="chip ${c === state.activeFilter ? "active" : ""}" data-cat="${esc(c)}">${esc(c)}</span>`
+  ).join("");
+  $("#filter-bar").querySelectorAll(".chip").forEach(el => {
+    el.onclick = () => { state.activeFilter = el.dataset.cat; renderFilter(); renderNewsList(); };
+  });
+}
+
+/* 二级范围过滤条：全部 / 画布中 / 已移除（并入 renderNewsList，状态变化自动刷新计数） */
+function renderScopeBar() {
+  const nOpen = DATA.filter(n => state.openCards.has(n.news_id)).length;
+  const nHid = state.hiddenNews.size;
+  const scopes = [["全部", "全部", DATA.length], ["画布中", "画布", nOpen], ["已移除", "已移除", nHid]];
+  $("#scope-bar").innerHTML = scopes.map(([label, key, cnt]) =>
+    `<span class="chip scope-chip ${state.listScope === key ? "active" : ""}" data-scope="${esc(key)}">${esc(label)} ${cnt}</span>`
+  ).join("");
+  $("#scope-bar").querySelectorAll(".scope-chip").forEach(el => {
+    el.onclick = () => { state.listScope = el.dataset.scope; renderNewsList(); };
+  });
+}
+
+function cardStateOf(n) {
+  if (state.hiddenNews.has(n.news_id)) return "hidden";
+  if (!state.openCards.has(n.news_id)) return "none";
+  return state.expanded.has(n.news_id) ? "expanded" : "open";
+}
+
+function renderNewsList() {
+  renderScopeBar();                          // 同步范围过滤计数
+  let list = state.activeFilter === "全部"
+    ? DATA : DATA.filter(n => n.category === state.activeFilter);
+  if (state.listScope === "画布") list = list.filter(n => !state.hiddenNews.has(n.news_id) && state.openCards.has(n.news_id));
+  else if (state.listScope === "已移除") list = list.filter(n => state.hiddenNews.has(n.news_id));
+  if (state.searchKey) {
+    const k = state.searchKey.toLowerCase();
+    list = list.filter(n => n.news_id.toLowerCase().includes(k)
+      || (n.events[0] ? n.events[0].description : "").toLowerCase().includes(k));
+  }
+  state.newsList = list;
+  $("#list-count").textContent = `(${list.length})`;
+  $("#news-list").innerHTML = list.length ? list.map(n => {
+    const st = cardStateOf(n);
+    const tag = st === "expanded" ? `<span class="st-tag t-exp">已展开</span>`
+      : st === "open" ? `<span class="st-tag t-open">画布中</span>`
+      : st === "hidden" ? `<span class="st-tag t-hid">已移除</span>` : "";
+    return `
+    <div class="news-card st-${st} ${state.currentNews === n ? "selected" : ""}" data-nid="${esc(n.news_id)}">
+      ${tag}
+      <div class="nid">${esc(n.news_id)}</div>
+      <div class="ntitle">${esc(n.events[0] ? shortDesc(n.events[0].description, 26) : "（无事件）")}</div>
+      <div class="meta">
+        <span class="badge cat-${esc(n.category)}">${esc(n.category)}</span>
+        <span class="badge">${n.events.length} 事件</span>
+        <span class="badge">${n.chains.length} 链</span>
+      </div>
+    </div>`;}).join("")
+    : `<div class="empty-tip">${state.searchKey ? "无匹配新闻，试试其他关键字" : "该分类下暂无新闻"}</div>`;
+  $("#news-list").querySelectorAll(".news-card").forEach(el => {
+    el.onclick = () => openCardAndFocus(el.dataset.nid);
+  });
+}
+
+/* 新闻搜索框：即时过滤，Esc/✕ 清空 */
+$("#news-search").addEventListener("input", e => {
+  state.searchKey = e.target.value.trim();
+  $("#search-clear").style.display = state.searchKey ? "block" : "none";
+  renderNewsList();
+});
+$("#news-search").addEventListener("keydown", e => {
+  if (e.key === "Escape") { e.target.value = ""; state.searchKey = ""; $("#search-clear").style.display = "none"; renderNewsList(); }
+});
+$("#search-clear").onclick = () => {
+  $("#news-search").value = ""; state.searchKey = "";
+  $("#search-clear").style.display = "none"; renderNewsList();
+};
+
+function selectNews(news) {
+  state.currentNews = news;
+  state.selectedEvent = null;
+  state.selectedRel = null;                     // 切换新闻 → 清除关系选中（熄灭原新闻的边高亮）
+  renderNewsList();
+  renderRelTable();
+  renderDetail();
+  renderWorld();
+  renderEdges();
+}
+
+/* ============================================================
+ * 布局：新闻分层 + 展示块（卡片）折叠/展开模型
+ * ============================================================ */
+const NODE_W = 210, NODE_H = 76, COL_GAP = 110, ROW_GAP = 26;
+const CLUSTER_PAD = 16, CLUSTER_GAP = 40;
+const CARD_W = 240, CARD_H = 96;
+const ZOOM_MIN = 0.15, ZOOM_MAX = 3;
+
+function computeLayers(news) {
+  const level = {};
+  const rels = news.causal_relations;
+  function lv(id, seen = new Set()) {
+    if (level[id] !== undefined) return level[id];
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const causes = rels.filter(r => r.effect_event_id === id).map(r => r.cause_event_id);
+    level[id] = causes.length ? Math.max(...causes.map(c => lv(c, seen))) + 1 : 0;
+    return level[id];
+  }
+  news.events.forEach(e => lv(e.event_id));
+  return level;
+}
+
+function layoutNewsLocal(news) {
+  const level = computeLayers(news);
+  const byLv = {};
+  news.events.forEach(e => (byLv[level[e.event_id]] ??= []).push(e));
+  const maxLv = Math.max(0, ...Object.values(level));
+  const pos = {};
+  news.events.forEach(e => {
+    const l = level[e.event_id], idx = byLv[l].indexOf(e);
+    pos[e.event_id] = { x: l * (NODE_W + COL_GAP), y: idx * (NODE_H + ROW_GAP) };
+  });
+  let innerH = NODE_H;
+  for (let l = 0; l <= maxLv; l++)
+    innerH = Math.max(innerH, (byLv[l]?.length || 0) * (NODE_H + ROW_GAP) - ROW_GAP);
+  const w = (maxLv + 1) * (NODE_W + COL_GAP) - COL_GAP;
+  return { pos, w, h: innerH };
+}
+
+/* ---- 展示块：放置 / 移动 / 展开 / 收起 ---- */
+function placeCard(nid) {
+  const r = canvasView.getBoundingClientRect();
+  const k = state.cardCount++ % 8;
+  const wx = (r.width / 2 - state.panX) / state.zoom - CARD_W / 2 + k * 36;
+  const wy = (r.height / 2 - state.panY) / state.zoom - CARD_H / 2 + k * 28;
+  state.cardPos[nid] = { x: wx, y: wy };
+}
+
+/* 移动展示块：展开时簇内节点与簇区域跟随平移 */
+function moveCard(nid, dx, dy) {
+  const p = state.cardPos[nid];
+  if (!p) return;
+  p.x += dx; p.y += dy;
+  if (state.expanded.has(nid)) moveCluster(nid, dx, dy);
+}
+
+/* 展开时确保簇布局存在（位于展示块正下方） */
+function ensureNewsLayout(news) {
+  const nid = news.news_id;
+  if (state.clusterRect[nid] && news.events.every(e => state.nodePos[keyOf(nid, e.event_id)])) return;
+  const { pos, w, h } = layoutNewsLocal(news);
+  const c = state.cardPos[nid] || { x: 60, y: 60 };
+  const cx = c.x, cy = c.y + CARD_H + CLUSTER_GAP;
+  state.clusterRect[nid] = { x: cx, y: cy, w: w + CLUSTER_PAD * 2, h: h + CLUSTER_PAD * 2 };
+  news.events.forEach(e => {
+    state.nodePos[keyOf(nid, e.event_id)] = {
+      x: cx + CLUSTER_PAD + pos[e.event_id].x,
+      y: cy + CLUSTER_PAD + pos[e.event_id].y
+    };
+  });
+}
+
+function relayoutNews(news) {
+  const nid = news.news_id;
+  const old = state.clusterRect[nid];
+  const { pos, w, h } = layoutNewsLocal(news);
+  const c = state.cardPos[nid] || { x: 60, y: 60 };
+  const cx = old ? old.x : c.x, cy = old ? old.y : c.y + CARD_H + CLUSTER_GAP;
+  state.clusterRect[nid] = { x: cx, y: cy, w: w + CLUSTER_PAD * 2, h: h + CLUSTER_PAD * 2 };
+  news.events.forEach(e => {
+    state.nodePos[keyOf(nid, e.event_id)] = {
+      x: cx + CLUSTER_PAD + pos[e.event_id].x,
+      y: cy + CLUSTER_PAD + pos[e.event_id].y
+    };
+  });
+}
+
+/* 平移整簇：簇区域 + 全部节点 */
+function moveCluster(nid, dx, dy) {
+  const r = state.clusterRect[nid];
+  if (r) { r.x += dx; r.y += dy; }
+  findNews(nid).events.forEach(e => {
+    const np = state.nodePos[keyOf(nid, e.event_id)];
+    if (np) { np.x += dx; np.y += dy; }
+  });
+}
+
+function expandNews(nid) {
+  const news = findNews(nid);
+  if (!news) return;
+  const c = state.cardPos[nid], r = state.clusterRect[nid];
+  if (!r || !news.events.every(e => state.nodePos[keyOf(nid, e.event_id)]))
+    ensureNewsLayout(news);                       // 首次展开：在卡片下方建簇
+  else {
+    const dx = c.x - r.x, dy = (c.y + CARD_H + CLUSTER_GAP) - r.y;
+    if (dx || dy) moveCluster(nid, dx, dy);       // 收起期间卡片被移动过：簇整体对齐回卡片下方
+  }
+  state.expanded.add(nid);
+}
+function collapseNews(nid) { state.expanded.delete(nid); }
+function toggleExpand(nid) {
+  if (state.expanded.has(nid)) collapseNews(nid);
+  else expandNews(nid);
+}
+
+/* 新闻在画布上的整体范围（收起=展示块；展开=展示块 ∪ 簇区域） */
+function cardBounds(news) {
+  const nid = news.news_id;
+  const c = state.cardPos[nid];
+  if (!c) return null;
+  if (!state.expanded.has(nid)) return { x: c.x, y: c.y, w: CARD_W, h: CARD_H };
+  const r = state.clusterRect[nid];
+  if (!r) return { x: c.x, y: c.y, w: CARD_W, h: CARD_H };
+  const x0 = Math.min(c.x, r.x), y0 = Math.min(c.y, r.y);
+  const x1 = Math.max(c.x + CARD_W, r.x + r.w), y1 = Math.max(c.y + CARD_H, r.y + r.h);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/* 左栏点击新闻：未放置则放置展示块，选中并定位 */
+function openCardAndFocus(nid) {
+  const news = findNews(nid);
+  if (!news) return;
+  let changed = false;
+  if (state.hiddenNews.has(nid)) {
+    state.hiddenNews.delete(nid);
+    saveHidden();
+    changed = true;
+  }
+  if (!state.openCards.has(nid)) {
+    state.openCards.add(nid);
+    placeCard(nid);
+    changed = true;
+  }
+  if (changed) markDirty();
+  selectNews(news);
+  if (state.activeTab === "graph") {
+    if (state.expanded.has(nid)) fitNews(news);
+    else {
+      const c = state.cardPos[nid];
+      const vr = canvasView.getBoundingClientRect();
+      const z = Math.max(state.zoom, .7);
+      animateTo(vr.width / 2 - (c.x + CARD_W / 2) * z, vr.height / 2 - (c.y + CARD_H / 2) * z, z);
+    }
+  }
+}
+
+/* 画布卡片网格重排（保留展开状态，簇随展示块平移） */
+function relayoutCards() {
+  let i = 0;
+  state.openCards.forEach(nid => {
+    const nx = 80 + (i % 4) * (CARD_W + 70);
+    const ny = 60 + Math.floor(i / 4) * (CARD_H + 70);
+    const p = state.cardPos[nid];
+    if (p) moveCard(nid, nx - p.x, ny - p.y);
+    i++;
+  });
+}
+
+/* ============================================================
+ * 视口变换 / 飞行动画
+ * ============================================================ */
+const canvasView = $("#canvas-view"), world = $("#world"), svg = $("#edges-svg");
+
+function applyTransform() {
+  const t = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  world.style.transform = t;
+  svg.style.transform = t;
+  $("#tb-zoom-val").textContent = Math.round(state.zoom * 100) + "%";
+  drawMinimap();
+}
+function setZoom(z, cx, cy) {
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  const r = canvasView.getBoundingClientRect();
+  const mx = (cx ?? r.left + r.width / 2) - r.left;
+  const my = (cy ?? r.top + r.height / 2) - r.top;
+  const k = z / state.zoom;
+  state.panX = mx - (mx - state.panX) * k;
+  state.panY = my - (my - state.panY) * k;
+  state.zoom = z;
+  applyTransform();
+}
+
+let animId = null;
+function cancelAnim() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+function animateTo(tx, ty, tz, ms = 450) {
+  cancelAnim();
+  const sx = state.panX, sy = state.panY, sz = state.zoom, t0 = performance.now();
+  function step(t) {
+    let k = Math.min(1, (t - t0) / ms);
+    k = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    state.panX = sx + (tx - sx) * k;
+    state.panY = sy + (ty - sy) * k;
+    state.zoom = sz + (tz - sz) * k;
+    applyTransform();
+    animId = k < 1 ? requestAnimationFrame(step) : null;
+  }
+  animId = requestAnimationFrame(step);
+}
+function fitRect(x0, y0, x1, y1, animate = true) {
+  if (![x0, y0, x1, y1].every(Number.isFinite) || x1 < x0 || y1 < y0) {
+    state.panX = 40; state.panY = 40; state.zoom = 1; applyTransform();   // 空视图兜底：回到默认视图，保证 transform 有效
+    return;
+  }
+  const r = canvasView.getBoundingClientRect();
+  const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN,
+    Math.min((r.width - 80) / (x1 - x0), (r.height - 80) / (y1 - y0), 1.2)));
+  const tx = (r.width - (x1 - x0) * z) / 2 - x0 * z;
+  const ty = (r.height - (y1 - y0) * z) / 2 - y0 * z;
+  if (animate) animateTo(tx, ty, z);
+  else { state.panX = tx; state.panY = ty; state.zoom = z; applyTransform(); }
+}
+function fitAll(animate = true) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  DATA.forEach(news => {
+    if (!state.openCards.has(news.news_id)) return;
+    const r = cardBounds(news);
+    if (!r) return;
+    x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y);
+    x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h);
+  });
+  if (!Number.isFinite(x0) || !Number.isFinite(x1)) return;  // 画布无展示块：保持当前视图，避免 NaN 污染 transform
+  fitRect(x0, y0, x1, y1, animate);
+}
+function fitNews(news) {
+  const r = cardBounds(news);
+  if (r) fitRect(r.x, r.y, r.x + r.w, r.y + r.h);
+}
+function flyToNode(news, eid) {
+  const p = state.nodePos[keyOf(news.news_id, eid)];
+  if (!p) return;
+  const r = canvasView.getBoundingClientRect();
+  const z = Math.max(state.zoom, 1);
+  animateTo(r.width / 2 - (p.x + NODE_W / 2) * z, r.height / 2 - (p.y + NODE_H / 2) * z, z);
+}
+
+/* ============================================================
+ * 世界渲染：新闻展示块 + 已展开的事件节点 + 因果连线
+ * ============================================================ */
+function renderWorld() {
+  const cards = DATA.filter(news => state.openCards.has(news.news_id)).map(news => {
+    const p = state.cardPos[news.news_id];
+    const isCur = state.currentNews === news;
+    const isOpen = state.expanded.has(news.news_id);
+    const title = news.events[0] ? news.events[0].description : "（无事件）";
+    return `<div class="news-block ${isOpen ? "expanded" : ""} ${isCur ? "current" : ""}"
+        data-nid="${esc(news.news_id)}"
+        title="点击${isOpen ? "收起" : "展开"}事件簇 · 拖动移动位置"
+        style="left:${p.x}px;top:${p.y}px">
+      <div class="nb-head"><b>${esc(news.news_id)}</b><span class="badge cat-${esc(news.category)}">${esc(news.category)}</span></div>
+      <div class="nb-title">${esc(shortDesc(title, 52))}</div>
+      <div class="nb-meta"><span>${news.events.length} 事件 · ${news.chains.length} 链 · ${news.causal_relations.length} 关系</span>
+        <span class="nb-toggle">${isOpen ? "▾ 收起" : "▸ 展开簇"}</span></div>
+    </div>`;
+  }).join("");
+  const nodes = DATA.filter(news => state.expanded.has(news.news_id)).map(news => news.events.map(e => {
+    const p = state.nodePos[keyOf(news.news_id, e.event_id)];
+    if (!p) return "";
+    const chains = [...new Set(news.causal_relations.filter(r => r.cause_event_id === e.event_id).map(r => r.chain_id))].join("/");
+    const isSel = state.currentNews === news && state.selectedEvent?.event_id === e.event_id;
+    const isEp = !!state.selectedRel && state.selectedRel.news_id === news.news_id &&
+      (() => { const r = findRel(news.news_id, state.selectedRel.relation_id).rel;
+        return !!r && (r.cause_event_id === e.event_id || r.effect_event_id === e.event_id); })();
+    return `<div class="dag-node ${isSel ? "selected" : ""}${isEp ? " edge-endpoint" : ""}" data-key="${esc(keyOf(news.news_id, e.event_id))}"
+          data-nid="${esc(news.news_id)}" data-eid="${esc(e.event_id)}"
+          title="${esc(e.description)}"
+          style="left:${p.x}px;top:${p.y}px;width:${NODE_W}px;height:${NODE_H}px">
+      <div class="n-top"><span class="n-id">${esc(e.event_id)}</span><span class="n-chain">${esc(chains)}</span></div>
+      <div class="n-desc">${esc(shortDesc(e.description, 28))}</div>
+      <div class="n-type">${esc(e.event_type.join(" / "))}</div>
+      <span class="port port-in"></span><span class="port port-out" title="拖到另一节点建立因果"></span>
+    </div>`;
+  }).join("")).join("");
+  world.innerHTML = cards + nodes;
+  $("#empty-hint").style.display = state.openCards.size ? "none" : "flex";
+
+  world.querySelectorAll(".news-block").forEach(el => {
+    el.addEventListener("mousedown", e => onCardMouseDown(e, el));
+    el.addEventListener("contextmenu", e => {
+      e.preventDefault(); e.stopPropagation();
+      openCardMenu(e, el.dataset.nid);
+    });
+  });
+  world.querySelectorAll(".dag-node").forEach(el => {
+    el.addEventListener("mousedown", e => onNodeMouseDown(e, el));
+    el.addEventListener("contextmenu", e => {
+      e.preventDefault(); e.stopPropagation();
+      openNodeMenu(e, el);
+    });
+  });
+}
+
+function renderEdges() {
+  let html = `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+    markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker></defs>`;
+  DATA.forEach(news => {
+    if (!state.expanded.has(news.news_id)) return;   // 仅展开的新闻显示因果连线
+    news.causal_relations.forEach(r => {
+      const a = state.nodePos[keyOf(news.news_id, r.cause_event_id)];
+      const b = state.nodePos[keyOf(news.news_id, r.effect_event_id)];
+      if (!a || !b) return;
+      const x1 = a.x + NODE_W, y1 = a.y + NODE_H / 2, x2 = b.x, y2 = b.y + NODE_H / 2;
+      const mx = (x1 + x2) / 2;
+      const d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+      const relSel = !!state.selectedRel && state.selectedRel.news_id === news.news_id
+        && state.selectedRel.relation_id === r.relation_id;
+      const sel = relSel || (state.currentNews === news && state.selectedEvent &&
+        (state.selectedEvent.event_id === r.cause_event_id || state.selectedEvent.event_id === r.effect_event_id));
+      const color = r.type === "indirect" ? "var(--accent)" : "var(--primary)";
+      const dash = r.type === "indirect" ? `stroke-dasharray="7 5"`
+        : (r.modality !== "factual" ? `stroke-dasharray="2 5"` : "");
+      const badgeX = (x1 + 6 * mx + x2) / 8, badgeY = (y1 + y2) / 2 + 14;
+      const strokeCol = r.type === "indirect" ? "#f59e0b" : "#3b6ef5";
+      if (relSel) html += `<path d="${d}" fill="none" stroke="${strokeCol}" stroke-width="9" opacity=".18" ${dash}/>`;
+      html += `
+        <path d="${d}" fill="none" stroke="${color}" stroke-width="${relSel ? 3.2 : (sel ? 3 : 1.8)}" ${dash}
+              opacity="${sel ? 1 : .6}" marker-end="url(#arrow)"/>
+        <path class="edge-hit" data-nid="${esc(news.news_id)}" data-rid="${esc(r.relation_id)}"
+              d="${d}" fill="none" stroke="rgba(0,0,0,0)" stroke-width="14" style="pointer-events:stroke"/>
+        <g class="edge-badge" data-nid="${esc(news.news_id)}" data-rid="${esc(r.relation_id)}"
+           transform="translate(${badgeX},${badgeY})" style="pointer-events:all">
+          <circle r="8.5" stroke="${relSel ? "#f59e0b" : "#cbd5e1"}"/>
+          <text text-anchor="middle" dy="3.2">e</text>
+        </g>
+        <text x="${(x1 + 6 * mx + x2) / 8}" y="${(y1 + y2) / 2 - 7}" text-anchor="middle" font-size="11"
+              fill="${relSel ? "#b45309" : "#64748b"}" stroke="#fff" stroke-width="3" paint-order="stroke" opacity="${sel ? 1 : .85}"
+              style="pointer-events:none">${esc(r.relation_id)} · ${esc(r.type)} · ${r.confidence.toFixed(2)}</text>`;
+    });
+  });
+  html += `<path id="temp-edge" fill="none" stroke="var(--primary)" stroke-width="2"
+    stroke-dasharray="6 6" style="display:none" marker-end="url(#arrow)"/>`;
+  svg.innerHTML = html;
+  svg.querySelectorAll(".edge-hit, .edge-badge").forEach(p => {
+    p.addEventListener("contextmenu", e => {
+      e.preventDefault(); e.stopPropagation();
+      openEdgeMenu(e, p.dataset.nid, p.dataset.rid);
+    });
+    p.addEventListener("mousedown", e => e.stopPropagation());   // 阻止触发画布平移
+    p.addEventListener("click", e => {
+      e.stopPropagation();
+      toggleRelation(p.dataset.nid, p.dataset.rid);
+    });
+    p.addEventListener("mousemove", e => showEdgeTip(e, p.dataset.nid, p.dataset.rid));
+    p.addEventListener("mouseleave", hideEdgeTip);
+  });
+}
+
+/* ===== 连边 ↔ 证据联动 ===== */
+function findRel(nid, rid) {
+  const news = findNews(nid);
+  return { news, rel: news ? news.causal_relations.find(r => r.relation_id === rid) : null };
+}
+function toggleRelation(nid, rid) {
+  if (state.selectedRel && state.selectedRel.news_id === nid && state.selectedRel.relation_id === rid) {
+    state.selectedRel = null;                       // 再次点击同一条边 → 取消选中
+  } else {
+    state.selectedRel = { news_id: nid, relation_id: rid };
+    state.selectedEvent = null;                     // 与事件选中互斥
+    if (state.currentNews?.news_id !== nid) {
+      state.currentNews = findNews(nid);            // 跨新闻点边 → 自动切换当前新闻
+      renderNewsList();
+    }
+  }
+  renderWorld(); renderEdges(); renderRelTable(); renderDetail();
+  const row = $("#rel-table").querySelector(`tr[data-rid="${CSS.escape(rid)}"]`);
+  if (row && state.selectedRel) row.scrollIntoView({ block: "nearest" });
+}
+function clearRelSel() {
+  if (!state.selectedRel) return;
+  state.selectedRel = null;
+  renderWorld(); renderEdges(); renderRelTable(); renderDetail();
+}
+function showEdgeTip(e, nid, rid) {
+  const { news, rel } = findRel(nid, rid);
+  const tip = $("#edge-tip");
+  if (!news || !rel) { tip.style.display = "none"; return; }
+  tip.innerHTML = `<div class="et-id">${esc(rel.relation_id)} · ${esc(rel.type)} · 置信度 ${rel.confidence.toFixed(2)}</div>${esc(shortDesc(rel.evidence_text, 64))}`;
+  const cr = canvasView.getBoundingClientRect();
+  let x = e.clientX - cr.left + 14, y = e.clientY - cr.top + 14;
+  tip.style.display = "block";
+  if (x + tip.offsetWidth > cr.width - 8) x = e.clientX - cr.left - tip.offsetWidth - 12;
+  if (y + tip.offsetHeight > cr.height - 8) y = e.clientY - cr.top - tip.offsetHeight - 12;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function hideEdgeTip() { $("#edge-tip").style.display = "none"; }
+
+function renderAll() { renderWorld(); renderEdges(); renderRelTable(); renderStats(); renderNewsList(); renderDetail(); drawMinimap(); }
+
+/* ============================================================
+ * 交互：平移 / 缩放 / 节点拖拽 / 右键划动移出新闻
+ * ============================================================ */
+let swipe = null, suppressCtx = false;
+canvasView.addEventListener("mousedown", e => {
+  if (e.button === 2) {          // 右键按下：准备划动移出新闻（移动超过阈值才激活）
+    if (e.target.closest("#float-toolbar") || e.target.closest("#minimap") ||
+        e.target.closest("#ctx-menu")) return;
+    e.preventDefault();
+    swipe = { sx: e.clientX, sy: e.clientY, moved: false, trail: [], crossed: new Set() };
+    return;
+  }
+  if (e.button !== 0) return;
+  if (e.target.closest(".dag-node") || e.target.closest(".news-block") ||
+      e.target.closest("#float-toolbar") || e.target.closest("#minimap") || e.target.closest("#ctx-menu")) return;
+  cancelAnim();
+  state.drag = { type: "pan", sx: e.clientX, sy: e.clientY, opx: state.panX, opy: state.panY, moved: false };
+  canvasView.classList.add("panning");
+});
+
+/* 展示块按下：拖动移动（展开时簇跟随），未拖动则点击切换展开/收起 */
+function onCardMouseDown(e, el) {
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  cancelAnim(); closeMenu();
+  const nid = el.dataset.nid;
+  const p = state.cardPos[nid];
+  const nodeStart = {}, rx0 = state.clusterRect[nid]?.x, ry0 = state.clusterRect[nid]?.y;
+  if (state.expanded.has(nid)) {   // 记录初始位置：拖动中做绝对定位，避免累计位移重复叠加
+    findNews(nid).events.forEach(ev => {
+      const np = state.nodePos[keyOf(nid, ev.event_id)];
+      if (np) nodeStart[ev.event_id] = { x: np.x, y: np.y };
+    });
+  }
+  state.drag = { type: "card", nid, el, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, nodeStart, rx0, ry0, moved: false };
+}
+
+function onNodeMouseDown(e, el) {
+  if (e.button !== 0) return;
+  if (e.target.classList.contains("port-out")) { startConnect(e, el); return; }
+  e.preventDefault(); e.stopPropagation();
+  cancelAnim(); closeMenu();
+  const p = state.nodePos[el.dataset.key];
+  state.drag = { type: "node", key: el.dataset.key, nid: el.dataset.nid, eid: el.dataset.eid,
+                 el, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false };
+}
+
+window.addEventListener("mousemove", e => {
+  if (swipe) {
+    if (!swipe.moved && Math.abs(e.clientX - swipe.sx) + Math.abs(e.clientY - swipe.sy) > 6)
+      swipe.moved = true;
+    if (swipe.moved) {
+      const cr = canvasView.getBoundingClientRect();
+      swipe.trail.push([e.clientX - cr.left, e.clientY - cr.top]);   // 画布相对坐标，避免激光与光标错位
+      updateLaser();
+      swipeMarkAt(e.clientX, e.clientY);
+    }
+    return;
+  }
+  if (state.connecting) { updateConnect(e); return; }
+  if (!state.drag) return;
+  const d = state.drag;
+  const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+  if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+  if (d.type === "node") {
+    const p = state.nodePos[d.key];
+    p.x = d.ox + dx / state.zoom;
+    p.y = d.oy + dy / state.zoom;
+    d.el.style.left = p.x + "px"; d.el.style.top = p.y + "px";
+    renderEdges(); drawMinimap();
+  } else if (d.type === "card") {
+    const wx = dx / state.zoom, wy = dy / state.zoom;
+    const p = state.cardPos[d.nid];
+    p.x = d.ox + wx; p.y = d.oy + wy;
+    d.el.style.left = p.x + "px"; d.el.style.top = p.y + "px";
+    if (state.expanded.has(d.nid)) {          // 展开时簇跟随展示块移动（基于按下时初始位置绝对定位）
+      findNews(d.nid).events.forEach(ev => {
+        const st = d.nodeStart[ev.event_id];
+        const np = state.nodePos[keyOf(d.nid, ev.event_id)];
+        if (!st || !np) return;
+        np.x = st.x + wx; np.y = st.y + wy;
+        const nel = world.querySelector(`.dag-node[data-key="${CSS.escape(keyOf(d.nid, ev.event_id))}"]`);
+        if (nel) { nel.style.left = np.x + "px"; nel.style.top = np.y + "px"; }
+      });
+      const r = state.clusterRect[d.nid];
+      if (r && d.rx0 !== undefined) { r.x = d.rx0 + wx; r.y = d.ry0 + wy; }
+      renderEdges();
+    }
+    drawMinimap();
+  } else {
+    state.panX = d.opx + dx;
+    state.panY = d.opy + dy;
+    applyTransform();
+  }
+});
+
+window.addEventListener("mouseup", e => {
+  if (e.button === 2 && swipe) {
+    const moved = swipe.moved, crossed = [...swipe.crossed];
+    swipe = null;
+    hideLaser();
+    if (moved) {
+      suppressCtx = true;
+      setTimeout(() => suppressCtx = false, 120);
+      if (crossed.length) hideNewsList(crossed);
+    }
+    return;
+  }
+  if (state.connecting) { finishConnect(e); return; }
+  if (!state.drag) return;
+  const wasClick = !state.drag.moved;
+  const d = state.drag;
+  state.drag = null;
+  canvasView.classList.remove("panning");
+  if (wasClick && d.type === "card") {          // 点击展示块：切换展开/收起并选中
+    state.currentNews = findNews(d.nid);
+    state.selectedEvent = null;
+    toggleExpand(d.nid);
+    if (state.expanded.has(d.nid)) fitNews(state.currentNews);
+    renderWorld(); renderEdges(); renderDetail(); renderNewsList(); renderRelTable(); drawMinimap();
+    markDirty();
+  } else if (wasClick && d.type === "node") {
+    state.currentNews = findNews(d.nid);
+    state.selectedEvent = state.currentNews.events.find(ev => ev.event_id === d.eid) || null;
+    state.selectedRel = null;                     // 选中事件 → 清除关系选中（互斥）
+    renderWorld(); renderEdges(); renderDetail(); renderNewsList(); renderRelTable();
+  } else if (!wasClick && (d.type === "node" || d.type === "card")) {
+    markDirty();                                // 拖动结束：位置修改自动保存
+  } else if (wasClick && d.type === "pan") {
+    state.selectedEvent = null;
+    renderWorld(); renderEdges(); renderDetail();
+  }
+});
+
+/* 右键划动：激光轨迹 + 命中的新闻簇标记（松开鼠标后仅从画布移除，不改动数据） */
+function updateLaser() {
+  $("#laser-svg").innerHTML =
+    `<polyline points="${swipe.trail.map(([x, y]) => `${x},${y}`).join(" ")}" />`;
+}
+function hideLaser() { $("#laser-svg").innerHTML = ""; }
+function swipeMarkAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const nid = el?.closest(".dag-node")?.dataset.nid || el?.closest(".news-block")?.dataset.nid;
+  if (!nid || state.hiddenNews.has(nid) || swipe.crossed.has(nid)) return;
+  swipe.crossed.add(nid);
+  world.querySelector(`.news-block[data-nid="${CSS.escape(nid)}"]`)?.classList.add("doomed");
+}
+
+/* 仅视图层：把新闻从画布移除 / 恢复（数据与 JSON 保持不变） */
+function saveHidden() {
+  try { localStorage.setItem(LS_HIDDEN, JSON.stringify([...state.hiddenNews])); } catch (e) {}
+}
+function hideNewsList(nids, announce = true) {
+  let changed = false;
+  nids.forEach(nid => {
+    if (!findNews(nid) || state.hiddenNews.has(nid)) return;
+    deleteFxForNews(nid);   // 删除特效：红色方块粒子爆发
+    state.hiddenNews.add(nid);
+    state.openCards.delete(nid);
+    state.expanded.delete(nid);
+    changed = true;
+    if (state.currentNews?.news_id === nid) { state.currentNews = null; state.selectedEvent = null; }
+  });
+  if (!changed) return;
+  markDirty();
+  saveHidden(); renderAll();
+  if (announce) toast(nids.length === 1
+    ? `已将 ${nids[0]} 从画布移除（数据未修改，可 Ctrl+Z 撤销）`
+    : `已将 ${nids.length} 条新闻从画布移除（数据未修改，可 Ctrl+Z 撤销）`);
+}
+function restoreAllHidden() {
+  if (!state.hiddenNews.size) return;
+  const n = state.hiddenNews.size;
+  state.hiddenNews.clear();
+  markDirty();
+  saveHidden(); renderAll();
+  toast(`已解除 ${n} 条新闻的移除标记，点击左侧列表可重新放置到画布`);
+}
+
+canvasView.addEventListener("wheel", e => {
+  e.preventDefault(); cancelAnim();
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  setZoom(state.zoom * factor, e.clientX, e.clientY);
+}, { passive: false });
+
+/* ============================================================
+ * 连线编辑：从输出端口拖到目标节点
+ * ============================================================ */
+function startConnect(e, el) {
+  e.preventDefault(); e.stopPropagation(); closeMenu();
+  state.connecting = { nid: el.dataset.nid, fromEid: el.dataset.eid };
+  canvasView.classList.add("connecting");
+  const p = state.nodePos[keyOf(el.dataset.nid, el.dataset.eid)];
+  updateTempPath(p.x + NODE_W, p.y + NODE_H / 2, p.x + NODE_W + 20, p.y + NODE_H / 2);
+}
+function worldFromEvent(e) {
+  const r = canvasView.getBoundingClientRect();
+  return { x: (e.clientX - r.left - state.panX) / state.zoom, y: (e.clientY - r.top - state.panY) / state.zoom };
+}
+function updateTempPath(x1, y1, x2, y2) {
+  const t = $("#temp-edge");
+  t.style.display = "block";
+  t.setAttribute("d", `M ${x1} ${y1} L ${x2} ${y2}`);
+}
+function updateConnect(e) {
+  const c = state.connecting;
+  const p = state.nodePos[keyOf(c.nid, c.fromEid)];
+  const w = worldFromEvent(e);
+  updateTempPath(p.x + NODE_W, p.y + NODE_H / 2, w.x, w.y);
+}
+function cancelConnect() {
+  if (!state.connecting) return;
+  state.connecting = null;
+  canvasView.classList.remove("connecting");
+  const t = $("#temp-edge");
+  if (t) t.style.display = "none";
+}
+function finishConnect(e) {
+  const c = state.connecting;
+  if (!c) return;
+  // 先取落点（此时悬浮部件仍是 pointer-events:none，不会被拦截），再结束连线状态
+  const target = document.elementFromPoint(e.clientX, e.clientY)?.closest(".dag-node");
+  cancelConnect();
+  if (!target) return;   // 拖到空白处=取消
+  if (target.dataset.nid !== c.nid) {
+    toast("只能在同一条新闻内部建立因果关系");
+    return;
+  }
+  if (target.dataset.eid === c.fromEid) return;
+  addRelation(c.nid, c.fromEid, target.dataset.eid, e);
+}
+function addRelation(nid, causeEid, effectEid, e) {
+  const news = findNews(nid);
+  const maxR = Math.max(0, ...news.causal_relations.map(r => +((r.relation_id || "").match(/^R(\d+)$/) || [0, 0])[1]));
+  const maxC = Math.max(
+    0, ...news.causal_relations.map(r => +((r.chain_id || "").match(/^C(\d+)$/) || [0, 0])[1]),
+    ...news.chains.map(c => +((c.chain_id || "").match(/^C(\d+)$/) || [0, 0])[1]));
+  const rid = "R" + (maxR + 1), cid = "C" + (maxC + 1);
+  news.causal_relations.push({
+    relation_id: rid, chain_id: cid, cause_event_id: causeEid, effect_event_id: effectEid,
+    type: "direct", modality: "factual", negation: false, conditions: [],
+    counterfactual_marker: false, confidence: 0.75,
+    evidence_text: "（人工添加的因果关系，无原文依据）"
+  });
+  news.chains.push({ chain_id: cid, root_cause_event_id: causeEid, final_effect_event_id: effectEid,
+                     description: `${causeEid} → ${effectEid}（人工添加）` });
+  markDirty();
+  renderEdges(); renderWorld(); renderRelTable(); renderStats(); renderNewsList(); renderDetail();
+  const r = canvasView.getBoundingClientRect();
+  burst(e.clientX - r.left, e.clientY - r.top, "#10b981");
+  toast(`已添加因果关系 ${causeEid} → ${effectEid}（${rid}，可在关系表中查看）`);
+}
+
+/* ============================================================
+ * 右键菜单：节点 / 新闻簇 / 连线 / 空白
+ * ============================================================ */
+function openNodeMenu(e, el) {
+  if (suppressCtx) return;
+  const nid = el.dataset.nid, eid = el.dataset.eid;
+  const news = findNews(nid);
+  const rels = news.causal_relations.filter(r => r.cause_event_id === eid || r.effect_event_id === eid);
+  openMenu(e.clientX, e.clientY, [
+    { label: "查看事件详情", fn: () => selectNews(news) || selectEventOnly(news, eid) },
+    { label: "重排该新闻布局", fn: () => { relayoutNews(news); renderWorld(); renderEdges(); drawMinimap(); markDirty(); toast("已重排 " + nid); } },
+    { sep: true },
+    { label: "从画布移除整条新闻（数据不变）", fn: () => hideNewsList([nid]) },
+    { sep: true },
+    { label: `删除该事件（连同 ${rels.length} 条关联边）`, danger: true, fn: () => deleteEvent(nid, eid, e) }
+  ]);
+}
+function openCardMenu(e, nid) {
+  if (suppressCtx) return;
+  const news = findNews(nid);
+  const isOpen = state.expanded.has(nid);
+  openMenu(e.clientX, e.clientY, [
+    { label: isOpen ? "收起事件簇" : "展开事件簇", fn: () => {
+      toggleExpand(nid);
+      if (state.expanded.has(nid)) fitNews(news);
+      selectNews(news);
+      markDirty();
+    } },
+    { label: "适应该新闻", fn: () => { selectNews(news); fitNews(news); } },
+    { label: "重排该新闻布局", fn: () => {
+      if (!state.expanded.has(nid)) expandNews(nid);
+      relayoutNews(news); renderWorld(); renderEdges(); drawMinimap(); markDirty(); toast("已重排 " + nid);
+    } },
+    { sep: true },
+    { label: "从画布移除该新闻（数据不变）", danger: true, fn: () => hideNewsList([nid]) }
+  ]);
+}
+/* 定位事件：确保新闻已放置并展开，再飞行到事件节点 */
+function locateEvent(news, eid) {
+  if (!state.openCards.has(news.news_id)) openCardAndFocus(news.news_id);
+  if (!state.expanded.has(news.news_id)) {
+    expandNews(news.news_id);
+    selectNews(news);
+    markDirty();
+  }
+  selectEventOnly(news, eid);
+  flyToNode(news, eid);
+}
+
+function openEdgeMenu(e, nid, rid) {
+  if (suppressCtx) return;
+  const news = findNews(nid);
+  const r = news.causal_relations.find(x => x.relation_id === rid);
+  openMenu(e.clientX, e.clientY, [
+    { label: `定位原因事件 ${r.cause_event_id}`, fn: () => locateEvent(news, r.cause_event_id) },
+    { label: `定位结果事件 ${r.effect_event_id}`, fn: () => locateEvent(news, r.effect_event_id) },
+    { sep: true },
+    { label: `删除该因果关系（${rid}）`, danger: true, fn: () => deleteRelation(nid, rid, e) }
+  ]);
+}
+canvasView.addEventListener("contextmenu", e => {
+  if (suppressCtx) { e.preventDefault(); return; }
+  if (e.target.closest(".dag-node") || e.target.closest(".edge-hit") ||
+      e.target.closest("#float-toolbar") || e.target.closest("#minimap")) return;
+  e.preventDefault();
+  const nAvail = DATA.length - state.hiddenNews.size;
+  const items = [
+    { label: `展示所有新闻（${nAvail}）`, fn: showAllNews },
+    state.currentNews ? { label: "适应当前新闻", fn: () => fitNews(state.currentNews) } : null,
+    { sep: true },
+    state.openCards.size ? { label: `移除所有新闻（${state.openCards.size}）`, danger: true, fn: hideAllNews } : null,
+    state.hiddenNews.size ? { label: `恢复所有已删除新闻标签（${state.hiddenNews.size}）`, fn: () => restoreAllHidden() } : null,
+    (state.dirty || undoStack.length) ? { sep: true } : null,
+    (state.dirty || undoStack.length) ? { label: "恢复初始数据（重置全部修改）", danger: true, fn: resetToOriginal } : null
+  ].filter(Boolean);
+  openMenu(e.clientX, e.clientY, items);
+});
+
+/* 一键清空画布：全部新闻移出画布（数据不变，可通过恢复全部或点击列表找回） */
+function hideAllNews() {
+  const nids = DATA.map(n => n.news_id).filter(nid => state.openCards.has(nid));
+  if (!nids.length) { toast("画布上已无新闻"); return; }
+  hideNewsList(nids);
+}
+
+/* 把全部未移除的新闻以展示块形式放到画布并网格排布 */
+function showAllNews() {
+  let added = 0;
+  DATA.forEach(n => {
+    if (state.hiddenNews.has(n.news_id)) return;
+    if (!state.openCards.has(n.news_id)) { state.openCards.add(n.news_id); placeCard(n.news_id); added++; }
+  });
+  relayoutCards(); renderWorld(); renderEdges(); drawMinimap(); markDirty(); fitAll();
+  toast(added ? `已展示全部 ${state.openCards.size} 条新闻（新放置 ${added} 条）` : "所有新闻均已在画布上");
+}
+
+function selectEventOnly(news, eid) {
+  state.currentNews = news;
+  state.selectedEvent = news.events.find(ev => ev.event_id === eid) || null;
+  renderWorld(); renderEdges(); renderDetail(); renderNewsList(); renderRelTable();
+}
+
+function deleteRelation(nid, rid, e, silent) {
+  const news = findNews(nid);
+  const idx = news.causal_relations.findIndex(r => r.relation_id === rid);
+  if (idx < 0) return;
+  const r = news.causal_relations[idx];
+  const mid = midpointOfRelation(nid, rid);
+  // 删除只剩这条关系支撑的链
+  news.causal_relations.splice(idx, 1);
+  news.chains = news.chains.filter(c =>
+    news.causal_relations.some(x => x.chain_id === c.chain_id));
+  markDirty();
+  renderEdges(); renderRelTable(); renderStats(); renderNewsList(); renderDetail();
+  if (e) {
+    const w = worldFromEvent(e);
+    burst(mid ? mid.sx : w.x, mid ? mid.sy : w.y, "#ef4444");
+  }
+  if (!silent) toast(`已删除因果关系 ${rid}`);
+}
+function midpointOfRelation(nid, rid) {
+  const news = findNews(nid);
+  const r = news.causal_relations.find(x => x.relation_id === rid);
+  if (!r) return null;
+  const a = state.nodePos[keyOf(nid, r.cause_event_id)], b = state.nodePos[keyOf(nid, r.effect_event_id)];
+  if (!a || !b) return null;
+  return { sx: state.panX + (a.x + NODE_W / 2 + b.x + NODE_W / 2) / 2 * state.zoom,
+           sy: state.panY + (a.y + NODE_H / 2 + b.y + NODE_H / 2) / 2 * state.zoom };
+}
+function deleteEvent(nid, eid, e) {
+  const news = findNews(nid);
+  if (news.events.length <= 1) { toast("新闻至少需保留一个事件"); return; }
+  const before = news.causal_relations.length;
+  news.events = news.events.filter(ev => ev.event_id !== eid);
+  news.causal_relations = news.causal_relations.filter(r =>
+    r.cause_event_id !== eid && r.effect_event_id !== eid);
+  news.chains = news.chains.filter(c =>
+    news.events.some(ev => ev.event_id === c.root_cause_event_id) &&
+    news.events.some(ev => ev.event_id === c.final_effect_event_id) &&
+    news.causal_relations.some(x => x.chain_id === c.chain_id));
+  delete state.nodePos[keyOf(nid, eid)];
+  if (state.selectedEvent?.event_id === eid) state.selectedEvent = null;
+  markDirty();
+  renderAll();
+  const firstEv = news.events[0];
+  const vr = canvasView.getBoundingClientRect();
+  const p = firstEv ? state.nodePos[keyOf(nid, firstEv.event_id)] : undefined;
+  if (p) burst(state.panX + p.x * state.zoom, state.panY + p.y * state.zoom, "#ef4444");
+  toast(`已删除事件 ${eid} 及其 ${before - news.causal_relations.length} 条关联边`);
+}
+
+/* ============================================================
+ * 小地图
+ * ============================================================ */
+const mini = $("#minimap"), miniCanvas = $("#minimap-canvas"), miniCtx = miniCanvas.getContext("2d");
+const MINI_DPR = window.devicePixelRatio || 1;
+let miniView = null;   // 当前绘制映射 { s, ox, oy, b }：绘制与命中检测共用同一坐标系
+let miniDrag = null;   // 视口框拖拽状态（记录按下点相对视口左上角的世界偏移）
+
+function miniWorldBounds() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  DATA.forEach(news => {
+    if (!state.openCards.has(news.news_id)) return;
+    const r = cardBounds(news);
+    if (!r) return;
+    x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y);
+    x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h);
+  });
+  // 并入当前视口，保证视口框永远落在缩略图范围内
+  if (Number.isFinite(state.panX) && Number.isFinite(state.panY) && state.zoom > 0) {
+    const r = canvasView.getBoundingClientRect();
+    const vx0 = -state.panX / state.zoom, vy0 = -state.panY / state.zoom;
+    x0 = Math.min(x0, vx0); y0 = Math.min(y0, vy0);
+    x1 = Math.max(x1, vx0 + r.width / state.zoom);
+    y1 = Math.max(y1, vy0 + r.height / state.zoom);
+  }
+  if (!Number.isFinite(x0) || !Number.isFinite(x1)) return { x: 0, y: 0, w: 1, h: 1 };
+  const pad = 60;
+  return { x: x0 - pad, y: y0 - pad, w: Math.max(1, x1 - x0 + pad * 2), h: Math.max(1, y1 - y0 + pad * 2) };
+}
+
+function drawMinimap() {
+  const W = mini.clientWidth, H = mini.clientHeight;
+  miniView = null;
+  if (mini.classList.contains("collapsed") || !W || !H) return;
+  mini.width = Math.round(W * MINI_DPR); mini.height = Math.round(H * MINI_DPR);
+  miniCtx.setTransform(MINI_DPR, 0, 0, MINI_DPR, 0, 0);
+  const b = miniWorldBounds();
+  const inset = 6;
+  const s = Math.min((W - inset * 2) / b.w, (H - inset * 2) / b.h);
+  const ox = (W - b.w * s) / 2, oy = (H - b.h * s) / 2;   // 内容居中锚定，消除角锚定导致的定位偏差
+  miniView = { s, ox, oy, b };
+  const X = wx => (wx - b.x) * s + ox, Y = wy => (wy - b.y) * s + oy;
+
+  miniCtx.clearRect(0, 0, W, H);
+  DATA.forEach(news => {                                  // 展示块 / 展开簇矩形框
+    if (!state.openCards.has(news.news_id)) return;
+    const r = cardBounds(news);
+    if (!r) return;
+    const cur = state.currentNews === news;
+    miniCtx.fillStyle = cur ? "rgba(245,158,11,.30)" : "rgba(59,110,245,.15)";
+    miniCtx.strokeStyle = cur ? "#f59e0b" : "rgba(59,110,245,.60)";
+    miniCtx.lineWidth = cur ? 1.5 : 1;
+    const rx = X(r.x), ry = Y(r.y);
+    const rw = Math.max(3, r.w * s), rh = Math.max(3, r.h * s);
+    miniCtx.fillRect(rx, ry, rw, rh);
+    miniCtx.strokeRect(rx + .5, ry + .5, rw - 1, rh - 1);
+  });
+  if (Number.isFinite(state.panX) && Number.isFinite(state.panY) && state.zoom > 0) {
+    const r = canvasView.getBoundingClientRect();
+    const vx = X(-state.panX / state.zoom), vy = Y(-state.panY / state.zoom);
+    const vw = r.width / state.zoom * s, vh = r.height / state.zoom * s;
+    miniCtx.fillStyle = "rgba(30,58,138,.07)";
+    miniCtx.strokeStyle = "#1e3a8a"; miniCtx.lineWidth = 1.5;
+    miniCtx.fillRect(vx, vy, vw, vh);
+    miniCtx.strokeRect(vx, vy, vw, vh);
+  }
+}
+
+/* 缩略图像素坐标 → 世界坐标 */
+function miniToWorld(mx, my) {
+  if (!miniView) return null;
+  const { s, ox, oy, b } = miniView;
+  return { x: (mx - ox) / s + b.x, y: (my - oy) / s + b.y };
+}
+function miniViewportRect() {
+  if (!miniView || !Number.isFinite(state.panX) || !Number.isFinite(state.panY) || !(state.zoom > 0)) return null;
+  const r = canvasView.getBoundingClientRect();
+  const { s, ox, oy, b } = miniView;
+  return { x: (-state.panX / state.zoom - b.x) * s + ox, y: (-state.panY / state.zoom - b.y) * s + oy,
+           w: r.width / state.zoom * s, h: r.height / state.zoom * s };
+}
+
+/* 点击空白跳转 + 按住视口框拖拽平移 */
+mini.addEventListener("mousedown", e => {
+  if (e.button !== 0 || !miniView) return;
+  const r = mini.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const vp = miniViewportRect();
+  if (vp && mx >= vp.x && mx <= vp.x + vp.w && my >= vp.y && my <= vp.y + vp.h) {
+    e.preventDefault(); e.stopPropagation();
+    cancelAnim();
+    const w = miniToWorld(mx, my);
+    miniDrag = { dx: w.x + state.panX / state.zoom, dy: w.y + state.panY / state.zoom };
+    miniCanvas.style.cursor = "grabbing";
+  } else {
+    const w = miniToWorld(mx, my);
+    if (!w) return;
+    const vr = canvasView.getBoundingClientRect();
+    animateTo(vr.width / 2 - w.x * state.zoom, vr.height / 2 - w.y * state.zoom, state.zoom, 250);
+  }
+});
+window.addEventListener("mousemove", e => {
+  if (!miniDrag) return;
+  const r = mini.getBoundingClientRect();
+  const w = miniToWorld(e.clientX - r.left, e.clientY - r.top);
+  if (!w) { miniDrag = null; miniCanvas.style.cursor = ""; return; }
+  state.panX = -(w.x - miniDrag.dx) * state.zoom;   // 视口框 1:1 跟随光标
+  state.panY = -(w.y - miniDrag.dy) * state.zoom;
+  applyTransform();
+});
+window.addEventListener("mouseup", () => {
+  if (miniDrag) { miniDrag = null; miniCanvas.style.cursor = ""; }
+});
+
+$("#mini-toggle").addEventListener("mousedown", e => e.stopPropagation());
+$("#mini-toggle").onclick = e => {
+  e.stopPropagation();
+  const collapsed = mini.classList.toggle("collapsed");
+  $("#mini-toggle").textContent = collapsed ? "▦" : "−";
+  $("#mini-toggle").title = collapsed ? "展开缩略图" : "折叠缩略图";
+  drawMinimap();
+};
+
+/* ============================================================
+ * 工具栏（可折叠）
+ * ============================================================ */
+$("#tb-toggle").onclick = () => $("#float-toolbar").classList.toggle("collapsed");
+$("#tb-zoom-in").onclick = () => setZoom(state.zoom * 1.25);
+$("#tb-zoom-out").onclick = () => setZoom(state.zoom / 1.25);
+$("#tb-reset").onclick = () => { cancelAnim(); state.zoom = 1; state.panX = 40; state.panY = 40; applyTransform(); };
+$("#tb-fit-all").onclick = () => fitAll();
+$("#tb-layout").onclick = () => {
+  relayoutCards(); renderWorld(); renderEdges(); drawMinimap(); markDirty();
+  toast("已重排画布展示块");
+};
+$("#tb-undo").onclick = undo;
+$("#tb-redo").onclick = redo;
+/* ============================================================
+ * 多步撤销 / 重做（快照栈：覆盖数据、节点/卡片位置、展开状态）
+ * ============================================================ */
+const UNDO_LIMIT = 50;               // 最多保留 50 步历史
+let undoStack = [], redoStack = [];
+let histBase = null;                 // 最近一次已提交状态（串），用于检测变化
+
+function captureStr() {
+  return JSON.stringify({
+    data: DATA, nodePos: state.nodePos, cardPos: state.cardPos,
+    clusterRect: state.clusterRect, cardCount: state.cardCount,
+    open: [...state.openCards], expanded: [...state.expanded], hidden: [...state.hiddenNews]
+  });
+}
+/* 修改提交时调用：把修改前的状态压入撤销栈 */
+function pushHistory() {
+  const cur = captureStr();
+  if (histBase === null) { histBase = cur; updateDirtyUI(); return; }
+  if (cur === histBase) return;      // 无实际变化，不入栈
+  undoStack.push(histBase);
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack.length = 0;              // 产生新修改后，重做历史失效
+  histBase = cur;
+  updateDirtyUI();
+}
+/* 恢复某个快照（撤销 / 重做共用） */
+function restoreState(str) {
+  const s = JSON.parse(str);
+  DATA = s.data;
+  state.nodePos = s.nodePos;
+  state.cardPos = s.cardPos;
+  state.clusterRect = s.clusterRect || {};
+  state.cardCount = s.cardCount ?? 0;
+  state.openCards = new Set(s.open);
+  state.expanded = new Set(s.expanded);
+  state.hiddenNews = new Set(s.hidden || []);
+  saveHidden();
+  state.selectedEvent = null; state.selectedRel = null;   // 选中状态可能悬空，重置
+  const nc = state.currentNews && DATA.find(n => n.news_id === state.currentNews.news_id);
+  state.currentNews = (nc && state.openCards.has(nc.news_id)) ? nc : null;
+  state.dirty = true;
+  renderAll();
+  updateDirtyUI();
+  schedulePersist();
+}
+function undo() {
+  if (!undoStack.length) { toast("没有可撤销的操作"); return; }
+  redoStack.push(captureStr());
+  histBase = undoStack.pop();
+  restoreState(histBase);
+  toast("已撤销一步");
+}
+function redo() {
+  if (!redoStack.length) { toast("没有可重做的操作"); return; }
+  undoStack.push(captureStr());
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  histBase = redoStack.pop();
+  restoreState(histBase);
+  toast("已重做一步");
+}
+/* 一键恢复到初始数据（保留原「撤销修改」能力，画布右键菜单可进入） */
+function resetToOriginal() {
+  if (!state.dirty && !undoStack.length && !redoStack.length) { toast("当前已是原始数据"); return; }
+  if (!confirm("确定撤销全部人工修改，恢复到原始数据？")) return;
+  undoStack.length = 0; redoStack.length = 0;
+  localStorage.removeItem(LS_KEY);
+  DATA = JSON.parse(JSON.stringify(ORIGINAL));
+  state.nodePos = {}; state.clusterRect = {}; state.cardCount = 0;
+  state.expanded.forEach(nid => { const n = findNews(nid); if (n) ensureNewsLayout(n); });   // 重建展开簇布局
+  state.currentNews = null; state.selectedEvent = null; state.selectedRel = null;
+  state.dirty = false;
+  histBase = captureStr();           // 恢复后作为新的历史基准
+  renderAll();
+  fitAll();
+  updateDirtyUI();
+  toast("已恢复初始数据");
+}
+
+/* ============================================================
+ * 数据修改持久化（localStorage 自动保存）
+ * ============================================================ */
+let saveTimer = null;
+function schedulePersist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        savedAt: Date.now(), stamp: DATA_STAMP, data: DATA, positions: state.nodePos,
+        cards: state.cardPos, open: [...state.openCards], expanded: [...state.expanded]
+      }));
+    } catch (e) { toast("自动保存失败（存储空间不足）"); }
+  }, 400);
+}
+function markDirty() {
+  pushHistory();
+  state.dirty = true;
+  updateDirtyUI();
+  schedulePersist();
+}
+function updateDirtyUI() {
+  $("#tb-dirty").style.display = state.dirty ? "inline" : "none";
+  $("#tb-undo").disabled = !undoStack.length;
+  $("#tb-redo").disabled = !redoStack.length;
+}
+/* 键盘快捷键：Ctrl+Z 撤销、Ctrl+Shift+Z / Ctrl+Y 重做（输入框内不拦截） */
+document.addEventListener("keydown", e => {
+  const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (!mod) return;
+  const k = e.key.toLowerCase();
+  if (k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
+  else if (k === "y") { e.preventDefault(); redo(); }
+});
+
+/* ============================================================
+ * 中栏：因果关系表（含删除操作）
+ * ============================================================ */
+function renderRelTable() {
+  const news = state.currentNews;
+  const evMap = {};
+  if (news) news.events.forEach(e => evMap[e.event_id] = e);
+  $("#rel-table").innerHTML = news ? `
+    <thead><tr>
+      <th>关系</th><th>链</th><th>原因事件</th><th>结果事件</th><th>类型</th><th>模态</th><th>置信度</th><th>依据原文</th><th>操作</th>
+    </tr></thead>
+    <tbody>
+      ${news.causal_relations.map(r => `
+        <tr data-rid="${esc(r.relation_id)}" class="${state.selectedRel && state.selectedRel.news_id === news.news_id && state.selectedRel.relation_id === r.relation_id ? "rel-hl" : ""}"
+            title="点击行在详情面板查看完整证据">
+          <td>${esc(r.relation_id)}${r.evidence_text === "（人工添加的因果关系，无原文依据）" ? '<span class="new-tag">人工</span>' : ""}</td>
+          <td>${esc(r.chain_id)}</td>
+          <td>${esc(r.cause_event_id)} ${esc(shortDesc(evMap[r.cause_event_id]?.description || "", 10))}</td>
+          <td>${esc(r.effect_event_id)} ${esc(shortDesc(evMap[r.effect_event_id]?.description || "", 10))}</td>
+          <td>${esc(r.type)}</td>
+          <td>${esc(r.modality)}</td>
+          <td><span class="conf-bar" style="width:${r.confidence * 60}px"></span> ${r.confidence.toFixed(2)}</td>
+          <td class="ev-text">${esc(r.evidence_text)}</td>
+          <td><button class="del-rel" data-rid="${esc(r.relation_id)}">删除</button></td>
+        </tr>`).join("")}
+    </tbody>`
+    : `<tbody><tr><td class="empty-tip">请先选择新闻</td></tr></tbody>`;
+  $("#rel-table").querySelectorAll(".del-rel").forEach(b => {
+    b.onclick = () => state.currentNews && deleteRelation(state.currentNews.news_id, b.dataset.rid, null);
+  });
+  $("#rel-table").querySelectorAll("tbody tr[data-rid]").forEach(tr => {
+    tr.onclick = e => {
+      if (e.target.closest(".del-rel")) return;   // 删除按钮不触发选中
+      if (state.currentNews) toggleRelation(state.currentNews.news_id, tr.dataset.rid);
+    };
+  });
+}
+
+/* ============================================================
+ * 右栏：详情面板（事件详情 / 原始 JSON）
+ * ============================================================ */
+function renderDetail() {
+  const box = $("#detail-body");
+  const news = state.currentNews;
+  if (!news) {
+    box.innerHTML = `<div class="empty-tip">点击左侧新闻，再点击图中事件节点查看详情</div>`;
+    return;
+  }
+  if (state.showJson) {
+    box.innerHTML = `<div id="json-view">${esc(JSON.stringify(news, null, 2))}</div>`;
+    return;
+  }
+  /* 选中因果关系：顶部证据卡 + 相关事件原文 */
+  if (state.selectedRel && state.selectedRel.news_id === news.news_id) {
+    const rel = news.causal_relations.find(r => r.relation_id === state.selectedRel.relation_id);
+    if (!rel) {
+      state.selectedRel = null;                    // 关系已被删除 → 自动清除选中
+    } else {
+      const cause = news.events.find(ev => ev.event_id === rel.cause_event_id);
+      const effect = news.events.find(ev => ev.event_id === rel.effect_event_id);
+      box.innerHTML = `
+        <div class="rel-card">
+          <div class="rc-head"><span class="rc-title">因果关系 ${esc(rel.relation_id)}</span><button class="rc-close" id="rc-close" title="关闭">✕</button></div>
+          <div class="rc-evs">
+            <div class="rc-ev" data-eid="${esc(rel.cause_event_id)}" title="点击定位到画布事件"><span class="rc-role cause">因</span><span class="rc-desc">${esc(cause?.description || rel.cause_event_id)}</span></div>
+            <div class="rc-ev" data-eid="${esc(rel.effect_event_id)}" title="点击定位到画布事件"><span class="rc-role effect">果</span><span class="rc-desc">${esc(effect?.description || rel.effect_event_id)}</span></div>
+          </div>
+          <div class="rc-meta">
+            <span class="m">类型 <b>${esc(rel.type)}</b></span>
+            <span class="m">模态 <b>${esc(rel.modality)}</b></span>
+            <span class="m">置信度 <b>${rel.confidence.toFixed(2)}</b></span>
+            <span class="m">所属链 <b>${esc(rel.chain_id)}</b></span>
+          </div>
+          <div class="rc-label">证据</div>
+          <div class="quote">${esc(rel.evidence_text)}</div>
+          <div class="rc-src">证据来源：新闻原文 · ${esc(news.news_id)}</div>
+        </div>
+        <div class="detail-section">
+          <div class="detail-title">相关事件原文</div>
+          ${cause ? `<div class="quote"><b>${esc(cause.event_id)}</b> · ${esc(cause.original_text)}</div>` : ""}
+          ${effect ? `<div class="quote"><b>${esc(effect.event_id)}</b> · ${esc(effect.original_text)}</div>` : ""}
+        </div>
+        <div class="detail-section">
+          <div class="detail-title">提示</div>
+          <div class="quote">点击画布连线或关系表行可切换选中；再次点击同一条边取消；点击卡片内因/果事件可定位到画布节点。</div>
+        </div>`;
+      $("#rc-close").onclick = clearRelSel;
+      box.querySelectorAll(".rc-ev").forEach(el => {
+        el.onclick = () => locateEvent(news, el.dataset.eid);
+      });
+      return;
+    }
+  }
+  const e = state.selectedEvent;
+  if (!e) {
+    box.innerHTML = `
+      <div class="detail-section">
+        <div class="detail-title">新闻信息</div>
+        <div class="kv"><span class="k">ID</span>${esc(news.news_id)}</div>
+        <div class="kv"><span class="k">类别</span>${esc(news.category)}</div>
+        <div class="kv"><span class="k">依据</span>${esc(news.category_evidence.join("、"))}</div>
+      </div>
+      <div class="detail-section">
+        <div class="detail-title">因果链</div>
+        ${news.chains.map(c => `<div class="quote">${esc(c.chain_id)}：${esc(c.description)}</div>`).join("")}
+      </div>
+      <div class="detail-section">
+        <div class="detail-title">事件列表</div>
+        ${news.events.map(ev => `
+          <div class="entity-row" style="cursor:pointer" data-eid="${esc(ev.event_id)}">
+            <span class="entity-type">${esc(ev.event_id)}</span>
+            <span>${esc(shortDesc(ev.description, 22))}</span>
+          </div>`).join("")}
+      </div>
+      <div class="detail-section">
+        <div class="detail-title">编辑提示</div>
+        <div class="quote">画布中：点击展示块展开/收起事件簇；展示块与事件节点均可拖动；从节点右侧端口拖到另一节点可新增因果；右键划过新闻可将其移出画布（不改动数据）；右键节点/连线可编辑。</div>
+      </div>`;
+    box.querySelectorAll("[data-eid]").forEach(el => {
+      el.onclick = () => locateEvent(news, el.dataset.eid);
+    });
+    return;
+  }
+  const rels = news.causal_relations.filter(r => r.cause_event_id === e.event_id || r.effect_event_id === e.event_id);
+  box.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-title">事件 ${esc(e.event_id)}</div>
+      <div class="kv">${esc(e.description)}</div>
+      <div class="quote">${esc(e.original_text)}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-title">实体（${e.entities.length}）</div>
+      ${e.entities.length ? e.entities.map(t => `
+        <div class="entity-row">
+          <span class="entity-type t-${esc(t.type)}">${esc(t.type)}</span>
+          <span><b>${esc(t.name)}</b><br><span style="color:var(--text-sub)">${esc(t.role)}</span></span>
+        </div>`).join("") : `<div class="empty-tip" style="padding:8px 0">无实体</div>`}
+    </div>
+    <div class="detail-section">
+      <div class="detail-title">关联因果关系（${rels.length}）</div>
+      ${rels.map(r => `
+        <div class="quote">${esc(r.relation_id)} [${esc(r.chain_id)}] ${esc(r.cause_event_id)} → ${esc(r.effect_event_id)}<br>
+        类型 ${esc(r.type)} · 模态 ${esc(r.modality)} · 置信度 ${r.confidence.toFixed(2)}</div>`).join("")}
+    </div>`;
+}
+
+/* ============================================================
+ * 事件绑定与初始化
+ * ============================================================ */
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    state.activeTab = t.dataset.tab;
+    $("#view-graph").style.display = state.activeTab === "graph" ? "flex" : "none";
+    $("#view-table").style.display = state.activeTab === "table" ? "block" : "none";
+    if (state.activeTab === "graph") { fxResize(); applyTransform(); }
+  };
+});
+
+$("#detail-toggle").onclick = () => {
+  state.showJson = !state.showJson;
+  $("#detail-toggle").textContent = state.showJson ? "返回详情" : "查看JSON";
+  renderDetail();
+};
+
+window.addEventListener("resize", () => { fxResize(); drawMinimap(); });
+
+/* ---- 启动：数据来自外部文件 新闻因果抽取结果.js ---- */
+
+/* 数据归一化：字段缺失/类型异常时兜底，保证任意同格式数据集都能安全渲染 */
+function normalizeDataset(arr) {
+  return arr.map((n, i) => {
+    const news = {
+      ...n,
+      news_id: n.news_id ?? ("news_" + String(i + 1).padStart(3, "0")),
+      category: n.category ?? "未分类",
+      events: Array.isArray(n.events) ? n.events : [],
+      causal_relations: Array.isArray(n.causal_relations) ? n.causal_relations : [],
+      chains: Array.isArray(n.chains) ? n.chains : [],
+    };
+    news.events.forEach(e => {
+      e.description = e.description ?? "";
+      e.original_text = e.original_text ?? "";
+      if (!Array.isArray(e.event_type)) e.event_type = e.event_type != null ? [String(e.event_type)] : [];
+    });
+    news.causal_relations.forEach(r => {
+      const v = Number(r.confidence);
+      if (!Number.isFinite(v)) r.confidence = 0; else r.confidence = v;
+    });
+    return news;
+  });
+}
+
+(function boot() {
+  if (!Array.isArray(window.NEWS_DATA) || !window.NEWS_DATA.length) {
+    $("#canvas-view").innerHTML = `<div class="load-error">
+      数据加载失败：未读取到 <code>window.NEWS_DATA</code>。<br>
+      请确认数据文件 <code>新闻因果抽取结果.js</code> 与 index.html 位于同一目录。</div>`;
+    return;
+  }
+  DATA = normalizeDataset(DATA);   // 归一化（含 localStorage 缓存恢复后的数据）
+  ORIGINAL = JSON.parse(JSON.stringify(DATA));
+  if (SAVED && Array.isArray(SAVED.data)) {
+    DATA = normalizeDataset(SAVED.data);   // 缓存数据同样归一化兜底
+    state.nodePos = SAVED.positions || {};
+    state.cardPos = SAVED.cards || {};
+    const openSaved = Array.isArray(SAVED.open) ? SAVED.open : [];
+    const expSaved = Array.isArray(SAVED.expanded) ? SAVED.expanded : [];
+    state.openCards = new Set(openSaved.filter(nid => findNews(nid) && !state.hiddenNews.has(nid)));
+    state.expanded = new Set(expSaved.filter(nid => state.openCards.has(nid)));   // 展开状态必须是已打开卡片的子集
+    state.openCards.forEach(nid => { if (!state.cardPos[nid]) placeCard(nid); });
+    state.cardCount = state.openCards.size;   // 避免新放置的卡片与恢复的卡片重叠
+    state.expanded.forEach(nid => { const n = findNews(nid); if (n) ensureNewsLayout(n); });
+    state.dirty = true;
+  } else SAVED = null;
+  fxResize();
+  renderStats();
+  renderFilter();
+  renderNewsList();
+  renderWorld();
+  renderEdges();
+  renderRelTable();
+  histBase = captureStr();       // 以当前（可能已恢复缓存）状态作为撤销历史的基准
+  updateDirtyUI();
+  requestAnimationFrame(() => fitAll(false));
+  if (SAVED) setTimeout(() => toast("已恢复上次的人工修改（可 Ctrl+Z 逐步撤销）"), 300);
+})();
+</script>
+</body>
+</html>
