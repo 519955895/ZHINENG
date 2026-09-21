@@ -1,0 +1,135 @@
+{
+  "news_id": "news_07",
+  "domain": "航运·供应链",
+  "date": "2024",
+  "title": "红海霍尔木兹危机迫使船只绕行，航程延长推高全球运费与供应链成本",
+  "source_url": "https://future.cfi.cn/p20260820000047.html",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "红海危机",
+      "mention": "红海霍尔木兹航运危机",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.92
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "绕行",
+      "mention": "船只绕行好望角",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "航程延长",
+      "mention": "运输时间延长",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.86
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "运费上涨",
+      "mention": "全球供应链运费成本激增",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.85
+    },
+    {
+      "event_id": "E005",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "成本上升",
+      "mention": "供应链成本上升",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.82
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "危机迫使船只绕行"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E002",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "绕行致航程延长"
+      ],
+      "confidence": 0.88,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E003",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "航程延长推高运费"
+      ],
+      "confidence": 0.85,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R004",
+      "cause_event_id": "E004",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "运费上涨推高供应链成本"
+      ],
+      "confidence": 0.82,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了全球运费成本激增？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "红海危机可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如船只绕行没有发生，供应链成本上升还会发生吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}

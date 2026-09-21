@@ -1,0 +1,112 @@
+{
+  "news_id": "news_10",
+  "domain": "经济·通胀",
+  "date": "2024",
+  "title": "全球粮食供应风险加剧，食品价格升至2022年以来最高，通胀压力与购买力承压",
+  "source_url": "https://www.9fzt.com/9fztgw_1_top/ec45e4bbf8b6d9d65d743539b7bd0aa5.html",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "供应风险",
+      "mention": "全球粮食供应风险加剧",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "食品价格",
+      "mention": "全球食品价格升至2022年以来最高",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.88
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "通胀",
+      "mention": "通胀压力上升",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.85
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "购买力",
+      "mention": "消费者购买力下降",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.8
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "供应风险推高食品价格"
+      ],
+      "confidence": 0.88,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E002",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "食品涨价加剧通胀"
+      ],
+      "confidence": 0.85,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E003",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "通胀致购买力下降"
+      ],
+      "confidence": 0.8,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了通胀压力上升？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "粮食供应风险加剧可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如食品价格没有上涨，消费者购买力还会下降吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "news_id": "news_01",
+  "domain": "自然灾害·城市内涝",
+  "date": "2024-07",
+  "title": "河南开封发布暴雨红色预警，应急响应升级，郑州/开封部分公交停运、停课停业",
+  "source_url": "https://export.shobserver.com/baijiahao/html/770081.html",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "暴雨",
+      "mention": "开封发布暴雨红色预警",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.95
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "政策/发布",
+      "trigger": "应急响应",
+      "mention": "防汛应急响应提升为三级",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.92
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "内涝",
+      "mention": "郑州启动蓝色内涝预警（道路积水）",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "社会/舆情",
+      "trigger": "公交停运",
+      "mention": "郑州和开封部分公交停运",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.88
+    },
+    {
+      "event_id": "E005",
+      "doc_id": "D0",
+      "event_type": "政策/发布",
+      "trigger": "停课停业",
+      "mention": "学校停课、商户停业",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E006",
+      "doc_id": "D0",
+      "event_type": "社会/舆情",
+      "trigger": "出行受阻",
+      "mention": "市民出行受阻",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.85
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "暴雨红色预警，应急响应提升为三级"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E001",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "强降雨导致道路内涝"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E001",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "暴雨红色预警，学校停课、商户停业"
+      ],
+      "confidence": 0.88,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R004",
+      "cause_event_id": "E002",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "应急响应，部分公交停运"
+      ],
+      "confidence": 0.8,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R005",
+      "cause_event_id": "E003",
+      "effect_event_id": "E004",
+      "relation_type": "enables",
+      "evidence": [
+        "内涝积水，部分公交停运"
+      ],
+      "confidence": 0.82,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R006",
+      "cause_event_id": "E003",
+      "effect_event_id": "E006",
+      "relation_type": "causal",
+      "evidence": [
+        "内涝积水，市民出行受阻"
+      ],
+      "confidence": 0.86,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R007",
+      "cause_event_id": "E004",
+      "effect_event_id": "E006",
+      "relation_type": "causal",
+      "evidence": [
+        "公交停运，市民出行受阻"
+      ],
+      "confidence": 0.84,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了市民出行受阻？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "暴雨红色预警可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如公交停运没有发生，市民出行受阻还会发生吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}

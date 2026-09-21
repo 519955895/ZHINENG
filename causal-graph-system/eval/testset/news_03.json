@@ -1,0 +1,146 @@
+{
+  "news_id": "news_03",
+  "domain": "供应链·汽车芯片",
+  "date": "2024",
+  "title": "车规级芯片缺货价格暴涨，车企停产减产、交付延期并推高车价",
+  "source_url": "https://wap.stockstar.com/detail/IG2026070300022323",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "芯片缺货",
+      "mention": "车规级芯片缺货",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.92
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "芯片涨价",
+      "mention": "车规芯片价格暴涨",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.88
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "停产",
+      "mention": "车企停产减产",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "社会/舆情",
+      "trigger": "交付延期",
+      "mention": "汽车交付延期",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.86
+    },
+    {
+      "event_id": "E005",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "汽车涨价",
+      "mention": "汽车价格上涨",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.85
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "缺货导致芯片涨价"
+      ],
+      "confidence": 0.85,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E001",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "缺货导致车企停产"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E002",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "芯片涨价推高汽车价格"
+      ],
+      "confidence": 0.78,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R004",
+      "cause_event_id": "E003",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "停产导致交付延期"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R005",
+      "cause_event_id": "E004",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "交付延期导致汽车涨价"
+      ],
+      "confidence": 0.8,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了汽车价格上涨？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "车规芯片缺货可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如车企停产没有发生，汽车价格上涨还会发生吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}

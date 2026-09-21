@@ -1,0 +1,135 @@
+{
+  "news_id": "news_08",
+  "domain": "航运·港口罢工",
+  "date": "2024",
+  "title": "欧洲码头大罢工致六大港口停摆，约4万TEU货物滞留、供应链延误",
+  "source_url": "https://news.sohu.com/a/1064965052_122014422",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "社会/舆情",
+      "trigger": "罢工",
+      "mention": "欧洲码头大罢工",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.92
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "港口停摆",
+      "mention": "六大港口运营中断",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "货物滞留",
+      "mention": "约4万TEU货物滞留",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.88
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "经济/涨跌",
+      "trigger": "供应链延误",
+      "mention": "供应链延误",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.85
+    },
+    {
+      "event_id": "E005",
+      "doc_id": "D0",
+      "event_type": "政策/发布",
+      "trigger": "应急响应",
+      "mention": "航运公司启动应急响应",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.8
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "罢工致港口停摆"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E002",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "港口停摆致货物滞留"
+      ],
+      "confidence": 0.88,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E003",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "货物滞留致供应链延误"
+      ],
+      "confidence": 0.85,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R004",
+      "cause_event_id": "E004",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "延误触发应急响应"
+      ],
+      "confidence": 0.82,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了供应链延误？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "码头大罢工可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如港口停摆没有发生，应急响应还会启动吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}

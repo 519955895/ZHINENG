@@ -1,0 +1,135 @@
+{
+  "news_id": "news_02",
+  "domain": "自然灾害·城市内涝",
+  "date": "2024-09",
+  "title": "福建莆田持续强降雨：多人失联，全市停工停产停课休市并全力抢险",
+  "source_url": "https://m.gmw.cn/2026-09/04/content_1304559247.htm",
+  "events": [
+    {
+      "event_id": "E001",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "强降雨",
+      "mention": "福建莆田遭遇持续强降雨",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.95
+    },
+    {
+      "event_id": "E002",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "内涝",
+      "mention": "城市内涝积水",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E003",
+      "doc_id": "D0",
+      "event_type": "灾害/事故",
+      "trigger": "失联",
+      "mention": "因强降雨多人失联",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.88
+    },
+    {
+      "event_id": "E004",
+      "doc_id": "D0",
+      "event_type": "政策/发布",
+      "trigger": "三停一休",
+      "mention": "全市启动三停一休（停工停产停课休市）",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.9
+    },
+    {
+      "event_id": "E005",
+      "doc_id": "D0",
+      "event_type": "社会/舆情",
+      "trigger": "抢险",
+      "mention": "全力抢险救援",
+      "arguments": [],
+      "time": "",
+      "location": "",
+      "char_offset": null,
+      "confidence": 0.92
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "R001",
+      "cause_event_id": "E001",
+      "effect_event_id": "E002",
+      "relation_type": "causal",
+      "evidence": [
+        "强降雨导致内涝积水"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R002",
+      "cause_event_id": "E002",
+      "effect_event_id": "E003",
+      "relation_type": "causal",
+      "evidence": [
+        "内涝积水导致多人失联"
+      ],
+      "confidence": 0.85,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R003",
+      "cause_event_id": "E003",
+      "effect_event_id": "E005",
+      "relation_type": "causal",
+      "evidence": [
+        "多人失联，全力抢险救援"
+      ],
+      "confidence": 0.9,
+      "time_lag": ""
+    },
+    {
+      "relation_id": "R004",
+      "cause_event_id": "E001",
+      "effect_event_id": "E004",
+      "relation_type": "causal",
+      "evidence": [
+        "强降雨，启动三停一休"
+      ],
+      "confidence": 0.88,
+      "time_lag": ""
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "Q1",
+      "question": "是什么导致了多人失联？",
+      "question_type": "causal_tracing",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q2",
+      "question": "持续强降雨可能引发哪些后续？",
+      "question_type": "situation_deduction",
+      "seed_event_ids": []
+    },
+    {
+      "query_id": "Q3",
+      "question": "假如内涝积水没有发生，全力抢险还会开展吗？",
+      "question_type": "counterfactual",
+      "seed_event_ids": []
+    }
+  ]
+}
