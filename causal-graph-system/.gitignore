@@ -5,9 +5,12 @@ __pycache__/
 .venv/
 venv/
 .env
+.pytest_cache/
 
 # 数据中间产物与模型权重
-data/raw/
+data/raw/*
+!data/raw/news_sample.json
+!data/raw/queries_sample.json
 data/events/
 data/relations/
 data/graphs/
@@ -16,6 +19,7 @@ models/
 *.pth
 *.ckpt
 *.bin
+events_result.jsonl
 
 # IDE / 系统
 .idea/

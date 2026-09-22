@@ -8,10 +8,10 @@ tqdm>=4.65
 # pydantic>=2.5
 
 # 文本处理 / 事件抽取（模块1，按需启用）
-# transformers>=4.36
-# torch>=2.1
+transformers>=4.36
+torch>=2.1
 # spacy>=3.7
-# jieba>=0.42
+jieba>=0.42
 # hanlp>=2.1
 
 # 关系分类（模块2，按需启用）

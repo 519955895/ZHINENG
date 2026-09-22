@@ -1,9 +1,14 @@
-"""模块3 主接口：图谱构建（成员 C，基线版）。
+"""模块3 主接口：由事件 + 因果对构建因果图谱。
 
-基线：直接以事件为节点、因果对为边。成员 C 可在此加入：
-- 节点去重/合并（同一事件被多次抽取）；
-- 冲突边处理（A→B 与 B→A）；
-- 元信息统计（密度、出入度）。
+成员 C 请在此实现核心逻辑：
+    build_graph(events, relations) -> CausalGraph
+    to_networkx(graph) -> nx.DiGraph   （供推理问答做路径检索）
+
+推荐实现要点：
+1. 节点去重/归一化：同一事件可能被多次抽取，需按 mention 相似度合并；
+2. 边构建：把 CausalRelation 转成有向边，处理冲突边（多策略见 config）；
+3. 提供 networkx 视图：图遍历、最短路径、可达性、强连通分量等算法都基于它；
+4. 元信息：统计节点数/边数/密度，便于后续诊断与可视化。
 """
 from __future__ import annotations
 
@@ -18,21 +23,17 @@ except ImportError:  # pragma: no cover
 
 
 def build_graph(events: List[Event], relations: List[CausalRelation]) -> CausalGraph:
-    node_ids = {n.event_id for n in events}
-    # 只保留两端节点都存在的边，避免悬空引用
-    valid_edges = [r for r in relations
-                   if r.cause_event_id in node_ids and r.effect_event_id in node_ids]
-    graph = CausalGraph(
-        graph_id="G001",
-        nodes=list(events),
-        edges=valid_edges,
-        metadata={
-            "node_count": len(events),
-            "edge_count": len(valid_edges),
-            "note": "基线建图：节点=事件，边=因果对，方向 cause -> effect",
-        },
-    )
-    return graph
+    """把事件节点与因果边组装为因果图。
+
+    Args:
+        events: 事件列表（作为节点）。
+        relations: 因果对列表（作为有向边）。
+
+    Returns:
+        CausalGraph，graph_id 建议 "G" + 时间戳或自增序号。
+    """
+    # TODO(成员 C)：替换为真实建图逻辑（含节点去重、冲突边处理）。
+    raise NotImplementedError("build_graph 尚未实现，请成员 C 在 graph_builder.py 中完成。")
 
 
 def to_networkx(graph: CausalGraph):

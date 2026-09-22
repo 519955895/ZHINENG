@@ -60,9 +60,7 @@ causal-graph-system/
 │   ├── interface.md              #   三人协作接口契约（必读）
 │   ├── module1_extraction.md     #   模块1开发说明
 │   ├── module2_relation.md       #   模块2开发说明
-│   ├── module3_graph.md          #   模块3开发说明
-│   ├── reasoning_methods.md      #   三类推理的论文+方法推荐与实现映射
-│   └── methods_summary.md        #   三类推理的算法+引用论文（精简总结）
+│   └── module3_graph.md          #   模块3开发说明
 ├── scripts/
 │   ├── run_pipeline.py           # 一键运行入口
 │   └── eval.py                   # 评测脚本

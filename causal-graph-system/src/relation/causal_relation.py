@@ -1,51 +1,35 @@
-"""模块2 主接口：规则版因果识别基线（成员 B）。
+"""模块2 主接口：识别事件间的因果关系。
 
-这是一个**可跑的基线**，用于打通全流程。成员 B 在此基础上升级即可
-（函数签名不变）：
+成员 B 请在此实现核心逻辑，只需保证函数签名与返回类型不变：
     extract_relations(events: List[Event]) -> List[CausalRelation]
 
-基线思路（弱基线，先用起来）：
-- 同一篇文档内、按阅读顺序相邻的事件对，视作因果候选（先发生的是因，后发生的是果）；
-- 新闻叙事多为顺承，该启发在样例上效果尚可；
-- evidence 暂用"因片段 -> 果片段"拼接，升级版应回填原文原句。
+推荐实现路线（渐进式）：
+1. 基线：因果提示词（"导致/引起/因为/致使/造成/引发"）规则匹配，
+   结合共现窗口（同句/同段/时间先后）形成候选对；
+2. 升级 1：二分类判别模型（BERT 等）判断候选对是否为因果关系；
+3. 升级 2：生成式 LLM 少样本抽取，直接输出 (cause, effect, type, evidence)；
+4. 进阶：跨句/跨文档因果、隐式因果（无提示词）、时序约束（因先于果）。
 
-升级路线（见 docs/module2_relation.md）：
-- 提示词规则（导致/造成/因为/致使…）做方向与类型判定；
-- 判别式二分类（BERT）；生成式 LLM 少样本抽取，直接输出 evidence。
+输出约束：
+- relation_id 全局唯一（建议 "R" + 自增序号）；
+- cause/effect 必须是已有 event_id；
+- evidence 必须回填原文证据片段（引用 mention），保证可解释性。
 """
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List
 
-from ..common.schemas import CausalRelation, Event, RELATION_CAUSAL
-
-
-def _sort_key(e: Event) -> int:
-    try:
-        return int(e.event_id[1:])
-    except (ValueError, IndexError):
-        return 0
+from ..common.schemas import CausalRelation, Event
 
 
 def extract_relations(events: List[Event]) -> List[CausalRelation]:
-    by_doc: Dict[str, List[Event]] = {}
-    for e in events:
-        by_doc.setdefault(e.doc_id, []).append(e)
-    for doc_events in by_doc.values():
-        doc_events.sort(key=_sort_key)
+    """识别事件两两之间的因果关系。
 
-    relations: List[CausalRelation] = []
-    rid = 0
-    for doc_events in by_doc.values():
-        for cause, effect in zip(doc_events, doc_events[1:]):
-            rid += 1
-            relations.append(CausalRelation(
-                relation_id=f"R{rid:03d}",
-                cause_event_id=cause.event_id,
-                effect_event_id=effect.event_id,
-                relation_type=RELATION_CAUSAL,
-                evidence=[f"{cause.mention} → {effect.mention}"],
-                confidence=0.7,
-                time_lag="immediate",
-            ))
-    return relations
+    Args:
+        events: 事件列表（模块1产出或赛题提供）。
+
+    Returns:
+        CausalRelation 列表，每条为一条有向因果边。
+    """
+    # TODO(成员 B)：替换为真实因果识别逻辑。
+    raise NotImplementedError("extract_relations 尚未实现，请成员 B 在 causal_relation.py 中完成。")

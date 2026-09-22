@@ -12,7 +12,10 @@ paths:
 
 # 模块1 事件抽取配置
 extraction:
-  model: rule        # rule / ner / seq2seq / llm
+  model: rule                    # rule（规则基线）/ pai（训练好的 PAIE 模型）
+  model_path: models/extraction/best.pt   # 仅 model: pai 时需要（相对项目根目录）
+  threshold: 0.5                 # 类型存在概率阈值（仅 pai）
+  device: auto                   # auto / cpu / cuda（仅 pai）
   event_types: [灾害/事故, 政策/发布, 经济/涨跌, 社会/舆情]
   do_coreference: false
   min_confidence: 0.5

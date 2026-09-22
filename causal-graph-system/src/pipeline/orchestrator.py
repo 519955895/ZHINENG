@@ -77,7 +77,10 @@ def run(config_path: str) -> List[Answer]:
 
         docs: List[Document] = load_documents(docs_path)
         log.info("模块1：事件抽取，文档 %d 篇", len(docs))
-        events: List[Event] = extract_events(docs)
+        extraction_cfg = dict(cfg.section("extraction"))
+        if extraction_cfg.get("model_path"):
+            extraction_cfg["model_path"] = resolve_path(root, extraction_cfg["model_path"])
+        events: List[Event] = extract_events(docs, extraction_cfg)
         save_events(events, events_out)
 
         log.info("模块2：因果识别，事件 %d 个", len(events))

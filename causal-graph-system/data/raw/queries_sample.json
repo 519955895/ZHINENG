@@ -1,0 +1,20 @@
+[
+  {
+    "query_id": "Q001",
+    "question": "是什么导致了道路积水严重？",
+    "question_type": "causal_tracing",
+    "seed_event_ids": []
+  },
+  {
+    "query_id": "Q002",
+    "question": "交通瘫痪可能引发哪些后续事件？",
+    "question_type": "situation_deduction",
+    "seed_event_ids": []
+  },
+  {
+    "query_id": "Q003",
+    "question": "假如暴雨没有发生，追尾事故是否还会出现？",
+    "question_type": "counterfactual",
+    "seed_event_ids": []
+  }
+]

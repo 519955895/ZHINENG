@@ -37,9 +37,6 @@ answer_query(graph, query, config) -> Answer
   （`keep_both` / `max_conf` 取高置信 / `min_conf` 取低置信）。
 - **元信息**：统计节点数、边数、密度、最大入/出度，写入 `metadata`。
 
-> 三类推理的**论文推荐 + 方法升级版**见 [`docs/reasoning_methods.md`](reasoning_methods.md)；
-> 本文件保留基线做法的说明，升级实现见 `src/reasoning/graph_algorithms.py` 及各推理文件。
-
 ## 二、推理问答
 
 ### 1. 因果追溯（causal_tracing）
