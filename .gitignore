@@ -1,0 +1,23 @@
+# 模型文件（太大，不推 GitHub）
+*.safetensors
+*.joblib
+*.pth
+*.bin
+data/models/
+
+# 训练数据（可选，按需保留）
+data/training/
+
+# 输出结果
+data/output/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+vendor/
+
+# 临时文件
+_tmp_*.py
+*.log
+.DS_Store
