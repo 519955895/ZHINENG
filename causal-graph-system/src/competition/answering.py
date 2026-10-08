@@ -232,6 +232,57 @@ def calibrate_level(rtype: str, score) -> Optional[str]:
     return level_of(score)
 
 
+# ---- 提交用置信度校准（数据驱动）------------------------------------
+# 在训练集小编号包（与隐藏测试集同分布）上统计的"内部图边分 -> 实际答案正确率"。
+# 赛方置信度分项按 confidence 与答案正确性的接近程度打分，故提交值应等于
+# 该题答案正确的期望概率，而非图边几何分（二者严重脱钩，如 single_hop 图边分
+# 0.9 但答案文本实际正确率仅约 0.25）。
+# 结构：题型 -> {内部 score 十分位桶: 经验正确率}；未命中桶用题型基准。
+_CALIB_BUCKETS: Dict[str, Dict[float, float]] = {
+    "multi_hop_causal":      {0.9: 0.42, 0.8: 0.45, 0.7: 0.43, 0.6: 0.04, 0.4: 0.07},
+    "temporal_causal":       {0.9: 0.32, 0.8: 0.40, 0.7: 0.17, 0.4: 0.26},
+    "grounded_pred":         {0.8: 0.22, 0.7: 0.23, 0.6: 0.33},
+    "single_hop":            {0.9: 0.25, 0.6: 0.25, 0.4: 0.20, 0.3: 0.12},
+    "counterfactual":        {0.8: 0.21, 0.7: 0.21, 0.6: 0.11, 0.4: 0.10},
+    "distractor_robustness": {0.5: 0.30},
+    "conflicting_sources":   {0.5: 0.09, 0.4: 0.09},
+    "missing_information":   {0.4: 0.12},
+    "unanswerable":          {0.4: 0.05},
+    "summary":               {0.5: 0.10},
+}
+_CALIB_BASE: Dict[str, float] = {
+    "multi_hop_causal": 0.41, "temporal_causal": 0.31, "grounded_pred": 0.30,
+    "single_hop": 0.25, "counterfactual": 0.20, "distractor_robustness": 0.30,
+    "conflicting_sources": 0.10, "missing_information": 0.12,
+    "unanswerable": 0.05, "summary": 0.10,
+}
+
+
+def calibrated_confidence(rtype: str, raw_score) -> Optional[float]:
+    """把内部图边分校准为提交用 confidence（≈答案正确的期望概率）。
+
+    None 透传（无答案题由提交层输出 null）；数值夹在 [0.05, 0.85]。
+    """
+    if raw_score is None:
+        return None
+    try:
+        s = float(raw_score)
+    except (TypeError, ValueError):
+        return None
+    buckets = _CALIB_BUCKETS.get(rtype)
+    val: Optional[float] = None
+    if buckets:
+        val = buckets.get(round(s, 1))
+        if val is None:
+            # 退而求其次：取键不超过 s 的最高桶
+            lower_keys = [b for b in buckets if b <= s]
+            if lower_keys:
+                val = buckets[max(lower_keys)]
+    if val is None:
+        val = _CALIB_BASE.get(rtype, max(0.1, min(0.6, s)))
+    return round(min(0.85, max(0.05, val)), 3)
+
+
 def geom_score(G, path: List[str]) -> float:
     """路径的几何平均边置信度（消除链长对置信度的系统性折扣）。"""
     if len(path) < 2:

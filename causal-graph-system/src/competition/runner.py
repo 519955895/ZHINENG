@@ -79,15 +79,23 @@ def _to_submit(record: dict) -> dict:
     - evidence_chain: 主证据链（一维，取第一条链），无法确定时为空列表；
     - confidence: 数值置信度（0-1），无法确定时为 null。
 
-    按赛方评分规则，question_type == "unanswerable" 的题必须输出
-    "无法确定" + null + []，才能拿到该题置信度/拒答分（20分）。
-    内部仍保留引擎给出的完整答案用于调试（见逐包 <名>.json）。
+    按赛方评分规则，无答案题必须输出 "无法确定" + null + [] 才能拿到
+    置信度/拒答分（20分）。是否拒答按 (question_type, reasoning_type) 组合的
+    训练集空链率决定：
+      - question_type=unanswerable 默认拒答；
+      - 但 distractor_robustness（干扰排除题）即使标 unanswerable，79% 有
+        实质"排除干扰"答案与证据链，须正常作答；
+      - conflicting/missing/unanswerable 类标 unanswerable 时空链率≥91%，拒答。
+    内部逐包 <名>.json 仍保留引擎给出的完整答案用于调试。
     """
     qtype = record.get("question_type")
+    rtype = record.get("reasoning_type")
     chains = record.get("evidence_chains") or []
     conf = record.get("confidence")
 
-    if qtype == "unanswerable":
+    should_refuse = (qtype == "unanswerable"
+                     and rtype != "distractor_robustness")
+    if should_refuse:
         # 按赛方评分口径：无答案题必须拒答，否则该题三项全丢
         main_chain, conf_out, answer = [], None, "无法确定"
     else:
@@ -96,7 +104,10 @@ def _to_submit(record: dict) -> dict:
             main_chain, conf_out, answer = [], None, "无法确定"
         else:
             main_chain = list(chains[0]) if chains else []
-            conf_out = conf
+            # 提交置信度按"题型×内部分"经验校准为答案正确的期望概率
+            # （内部图边分与答案正确率脱钩，直接提交会丢掉置信度校准分）
+            conf_out = answering.calibrated_confidence(
+                record.get("reasoning_type"), conf)
             answer = record.get("answers") or "无法确定"
     return {
         "sample_id": record.get("sample_id"),
