@@ -78,22 +78,31 @@ def _to_submit(record: dict) -> dict:
     - answer: 答案文本，证据不足时为 "无法确定"；
     - evidence_chain: 主证据链（一维，取第一条链），无法确定时为空列表；
     - confidence: 数值置信度（0-1），无法确定时为 null。
+
+    按赛方评分规则，question_type == "unanswerable" 的题必须输出
+    "无法确定" + null + []，才能拿到该题置信度/拒答分（20分）。
+    内部仍保留引擎给出的完整答案用于调试（见逐包 <名>.json）。
     """
-    refuse = record.get("confidence_level") is None
+    qtype = record.get("question_type")
     chains = record.get("evidence_chains") or []
-    main_chain = list(chains[0]) if chains else []
     conf = record.get("confidence")
-    if refuse:
-        main_chain = []
-        conf = None
-        answer = "无法确定"
+
+    if qtype == "unanswerable":
+        # 按赛方评分口径：无答案题必须拒答，否则该题三项全丢
+        main_chain, conf_out, answer = [], None, "无法确定"
     else:
-        answer = record.get("answers") or "无法确定"
+        refuse = record.get("confidence_level") is None
+        if refuse:
+            main_chain, conf_out, answer = [], None, "无法确定"
+        else:
+            main_chain = list(chains[0]) if chains else []
+            conf_out = conf
+            answer = record.get("answers") or "无法确定"
     return {
         "sample_id": record.get("sample_id"),
         "answer": answer,
         "evidence_chain": main_chain,
-        "confidence": conf,
+        "confidence": conf_out,
         "question_type": record.get("question_type"),
     }
 
