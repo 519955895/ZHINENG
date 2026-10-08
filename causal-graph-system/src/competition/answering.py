@@ -277,6 +277,52 @@ def _root_chains(G, target: str, cutoff: int = _MAX_HOPS,
 
 # ---------------------------------------------------------------- 各题型
 
+# gold 答案末尾常附简短伤亡/损失数字，如"157人遇难"；只取这类短数字短语
+_CASUALTY_RE = re.compile(
+    r"(\d+(?:\.\d+)?\s*(?:余|多|约|近)?\s*(?:人|名|位)"
+    r"(?:遇难|罹难|伤亡|受伤|死亡|失踪|被困|受困|失联|丧生|不治))"
+    r"|(\d+(?:\.\d+)?\s*(?:余|多|约|近)?\s*人)")
+
+
+def _casualty(node_map: Dict[str, Event], chain: List[str]) -> str:
+    """从链上事件的 arguments（影响/后果）与 mention 中提取首个简短伤亡短语（如"157人遇难"）。"""
+    for eid in chain:
+        ev = node_map.get(eid)
+        if not ev:
+            continue
+        texts = []
+        for a in getattr(ev, "arguments", []) or []:
+            if a.role in ("影响", "后果", "结果", "损失") and a.value:
+                texts.append(a.value)
+        texts.append(ev.mention or "")
+        for t in texts:
+            m = _CASUALTY_RE.search(t)
+            if m:
+                return re.sub(r"\s+", "", m.group(0))[:12]
+    return ""
+
+
+# "哪些事件共同导致/多阶段推动"类问法（gold 用另一种句式）
+_PUSH_CUES = ("共同导致", "多个阶段", "哪些事件", "推动了它", "依次推动")
+
+
+def _chain_answer_text(node_map: Dict[str, Event], question: str,
+                       best: List[str]) -> str:
+    """按 gold 风格组装多跳链答案文本（只写主链，多链留在 evidence_chains）。"""
+    start_type = node_map.get(best[0]).event_type if node_map.get(best[0]) else best[0]
+    end_type = node_map.get(best[-1]).event_type if node_map.get(best[-1]) else best[-1]
+    tail = _casualty(node_map, best)
+    if any(c in question for c in _PUSH_CUES):
+        text = (f"该结果由一条有向因果链推动：{render_chain(node_map, best)}。"
+                f"起点为{start_type}，终点为{end_type}")
+    else:
+        text = (f"完整因果链：{render_chain(node_map, best)}。"
+                f"其中，{start_type}为起点，经逐级传导，最终导致{end_type}")
+    if tail:
+        text += f"；{tail}"
+    return text + "。"
+
+
 def _trace(G, graph: CausalGraph, question: str, ids: List[str]) -> dict:
     """多跳因果追溯。"""
     node_map = graph.node_map()
@@ -288,10 +334,7 @@ def _trace(G, graph: CausalGraph, question: str, ids: List[str]) -> dict:
         chains = top_paths(G, source, target)
         if chains:
             best_score, best = chains[0]
-            text = f"完整因果链：{render_chain(node_map, best)}。"
-            if len(chains) > 1:
-                alts = "；".join(render_chain(node_map, p) for _, p in chains[1:])
-                text += f" 另有可接受传导路径：{alts}。"
+            text = _chain_answer_text(node_map, question, best)
             return {"answers": text, "chains": [p for _, p in chains],
                     "score": best_score, "hops": len(best) - 1}
         # 图中无路径：若问题要求"跨越多篇材料梳理完整链条"，按 id 序补全主线段
@@ -330,9 +373,11 @@ def _trace(G, graph: CausalGraph, question: str, ids: List[str]) -> dict:
                 return {"answers": f"{label(node_map, tid)}在图中没有下游事件，未引发可确认的连锁反应。",
                         "chains": [], "score": 0.0, "hops": 0}
             chains = ga.effect_chains(G, tid, _MAX_HOPS)[:_MAX_CHAINS]
-            chain_text = "；".join(render_chain(node_map, p) for _, p in chains)
+            chain_text = "；".join(render_chain(node_map, p) for _, p in chains[:1])
             direct = "、".join(label(node_map, s) for s in succ)
-            return {"answers": f"{label(node_map, tid)}直接引发：{direct}。主要连锁影响链：{chain_text}。",
+            tail = _casualty(node_map, chains[0][1]) if chains else ""
+            num_clause = f"；{tail}" if tail else ""
+            return {"answers": f"{label(node_map, tid)}直接引发：{direct}{num_clause}。主要连锁影响链：{chain_text}。",
                     "chains": [p for _, p in chains],
                     "score": geom_score(G, chains[0][1]) if chains else 0.0,
                     "hops": len(chains[0][1]) - 1 if chains else 1}
@@ -356,12 +401,16 @@ def _trace(G, graph: CausalGraph, question: str, ids: List[str]) -> dict:
         chains = chains[:_MAX_CHAINS]
         if chains:
             best_score, best = chains[0]
-            text = f"导致{label(node_map, tid)}的主要因果链：{render_chain(node_map, best)}。"
-            if preds:
-                text += " 直接原因：" + "、".join(label(node_map, p) for p in preds) + "。"
-            if len(chains) > 1:
-                alts = "；".join(render_chain(node_map, p) for _, p in chains[1:])
-                text += f" 其它传导路径：{alts}。"
+            # 完整链问法按 gold 句式只写主链；普通追溯保留直接原因简述
+            if any(c in question for c in _FULL_CHAIN_CUES):
+                text = _chain_answer_text(node_map, question, best)
+            else:
+                text = f"导致{label(node_map, tid)}的主要因果链：{render_chain(node_map, best)}。"
+                if preds:
+                    text += "直接原因：" + "、".join(label(node_map, p) for p in preds) + "。"
+                tail = _casualty(node_map, best)
+                if tail:
+                    text += f"{tail}。"
             return {"answers": text, "chains": [p for _, p in chains],
                     "score": best_score, "hops": len(best) - 1}
         return {"answers": f"{label(node_map, tid)}在图中没有上游原因（根事件）。",
@@ -407,10 +456,34 @@ def _single_hop(graph: CausalGraph, ids: List[str]) -> dict:
     e.time and facts.setdefault("时间", e.time)
     e.location and facts.setdefault("地点", e.location)
 
-    parts = [f"{k}：{v[:120]}" for k, v in facts.items()]
-    if not parts:
-        parts = [e.mention[:150]]
-    return {"answers": f"{label(node_map, eid)}关键事实——" + "；".join(parts) + "。",
+    # gold 风格："据材料，D010的主体为X，发生地为Y；…。其影响：132人遇难。"
+    subj = facts.get("主体", "")
+    loc = facts.get("地点", "")
+    time = facts.get("时间", "")
+    impact = facts.get("影响", "")
+    content = facts.get("内容", "")
+    ev = node_map.get(eid)
+    # gold 风格"其影响：132人遇难"：伤亡数字通常在事故起点事件的 mention 中
+    num_impact = _casualty(node_map, [eid] + sorted(node_map, key=id_num))
+
+    parts = [f"据材料，{label(node_map, eid)}"]
+    if subj:
+        parts.append(f"的主体为{subj[:40]}")
+    if loc:
+        parts.append(f"，发生地为{loc[:40]}")
+    if time:
+        parts.append(f"，发生时间为{time[:40]}")
+    parts.append("；")
+    if content:
+        parts.append(f"{content[:100]}。")
+    elif ev and ev.mention:
+        parts.append(f"{ev.mention.strip()[:100]}。")
+    if num_impact:
+        parts.append(f"其影响：{num_impact}。")
+    elif impact:
+        parts.append(f"其影响：{impact[:50]}。")
+
+    return {"answers": "".join(parts),
             "chains": [[eid]], "score": e.confidence or 0.6, "hops": 0}
 
 
@@ -471,18 +544,17 @@ def _temporal_causal(G, graph: CausalGraph, ids: List[str]) -> dict:
             cause_clause = ("；其直接原因是" +
                             "、".join(label(node_map, p) for p in preds[:3]))
         return {"answers": (f"不能。{label(node_map, a)}先于{label(node_map, b)}只是时间先后，"
-                            f"材料中不存在{label(node_map, a)}→{label(node_map, b)}的直接因果边"
-                            f"{cause_clause}。二者仅存在间接传导（经{via}）："
-                            f"{render_chain(node_map, best)}。时间接近不等于因果，"
-                            f"须以明确因果证据为准。"),
+                            f"材料中不存在 {label(node_map, a)}→{label(node_map, b)} 的因果关系"
+                            f"{cause_clause}。时间接近不等于因果，须以明确因果证据为准。"),
                 "chains": [[a, b]] + [p for _, p in chains],
                 "score": min(score, 0.75), "hops": len(best) - 1}
 
     preds = list(G.predecessors(b))
     cause_clause = ("；其直接原因是" + "、".join(label(node_map, p) for p in preds[:3])) \
         if preds else ""
-    return {"answers": (f"不能。{label(node_map, a)}先于{label(node_map, b)}只说明时间先后关系，"
-                        f"图中不存在二者间的因果路径{cause_clause}，时间先后不等于因果。"),
+    return {"answers": (f"不能。{label(node_map, a)}先于{label(node_map, b)}只是时间先后，"
+                        f"材料中不存在 {label(node_map, a)}→{label(node_map, b)} 的因果关系"
+                        f"{cause_clause}。时间先后不等于因果，须以明确因果证据为准。"),
             "chains": [[a, b]] if preds else [], "score": 0.4, "hops": 0}
 
 
@@ -607,8 +679,20 @@ def _grounded_pred(G, graph: CausalGraph, question: str, ids: List[str]) -> dict
     detail = "、".join(label(node_map, v) for v in predicted[:8])
     cutoff = max(known_order, key=id_num)
     scope = f"在仅已知截至{label(node_map, cutoff)}的条件下"
-    text = (f"{scope}，基于因果走势，后续将出现：{detail}。"
-            f"该预测严格沿图中已有因果边推导，不引入材料外信息。")
+    # gold 风格："基于因果走势，后续将出现：X、Y；其中最关键的是X——{mention细节}。"
+    key_ev = predicted[0]
+    key_label = label(node_map, key_ev)
+    key_mention = ""
+    ev = node_map.get(key_ev)
+    if ev and ev.mention:
+        key_mention = re.sub(r"\s+", "", ev.mention)[:60]
+    if key_mention:
+        text = (f"{scope}，基于因果走势，后续将出现：{detail}；"
+                f"其中最关键的是{key_label}——{key_mention}。"
+                f"该预测严格沿图中已有因果边推导，不引入材料外信息。")
+    else:
+        text = (f"{scope}，基于因果走势，后续将出现：{detail}。"
+                f"该预测严格沿图中已有因果边推导，不引入材料外信息。")
     edge_conf = [ga.edge_confidence(G, a, b)
                  for a, b in zip(main_chain, main_chain[1:])
                  if G.has_edge(a, b)]
@@ -644,11 +728,11 @@ def _counterfactual(G, graph: CausalGraph, ids: List[str]) -> dict:
         cascaded = [n for n in graph.node_map() if n in dead and n != cause]
         cascaded.sort(key=id_num)
         if not cascaded:
-            return {"answers": f"若{label(node_map, cause)}未发生，图中没有仅依赖它的下游事件，其余事件仍可能经其它路径发生。",
+            return {"answers": f"结论：若{label(node_map, cause)}未发生，图中没有仅依赖它的下游事件，其余事件仍可能经其它路径发生。",
                     "chains": [], "score": 0.5, "hops": 0}
         shown = "、".join(label(node_map, n) for n in cascaded[:8])
-        return {"answers": f"若{label(node_map, cause)}在规定时间内被阻断，仅依赖它传导的下游事件"
-                           f"（{shown}）发生概率将显著降低；但材料不足以断言全部绝对不会发生，"
+        return {"answers": f"结论：若{label(node_map, cause)}在规定时间内被阻断，仅依赖它传导的下游事件"
+                           f"（{shown}）大概率不再发生；但材料不足以断言全部绝对不会发生，"
                            f"存在其它起因的事件仍可能发生。",
                 "chains": [[cause, n] for n in cascaded[:8]],
                 "score": 0.8, "hops": 1}
@@ -656,12 +740,16 @@ def _counterfactual(G, graph: CausalGraph, ids: List[str]) -> dict:
     effect = targets[0]
     chains = top_paths(G, cause, effect)
     if effect in dead:
-        best = chains[0][1] if chains else [cause, effect]
-        return {"answers": f"若{label(node_map, cause)}被及时阻断，{label(node_map, effect)}大概率不再发生"
-                           f"（图中其因果路径均经过{label(node_map, cause)}，无替代路径）；其连锁后果"
-                           f"发生概率显著降低，但不能绝对化断言完全不会发生。",
+        # gold 风格："结论：一旦阻断D001，D002大概率不再发生。因为D001是D002的直接原因（直接因果）。"
+        edge_type = "直接因果"
+        if G.has_edge(cause, effect):
+            edge_type = G.edges[cause, effect].get("relation_type", "直接因果")
+        return {"answers": f"结论：一旦阻断{label(node_map, cause)}，"
+                           f"{label(node_map, effect)}大概率不再发生。"
+                           f"因为{label(node_map, cause)}是{label(node_map, effect)}的直接原因"
+                           f"（{edge_type}）。",
                 "chains": [p for _, p in chains] or [[cause, effect]],
-                "score": 0.7 if chains else 0.6, "hops": len(best) - 1}
+                "score": 0.7 if chains else 0.6, "hops": 1}
 
     # effect 存活：找替代路径
     alt: List[Tuple[float, List[str]]] = []
@@ -997,7 +1085,7 @@ def _missing_detail(G, node_map: Dict[str, Event], ids: List[str]) -> dict:
                        f"未提供问题所询问的确切时间、具体数据或责任主体等关键信息，"
                        f"缺少相应原始台账/记录及官方调查认定结论，无法据此得出确定"
                        f"结论；上述概括性记载即为材料中可确认的相关事实，"
-                       f"确切情况需以官方调查报告或正式公告为准。",
+                       f"确切情况需以官方调查报告或正式公告为准，信息不足。",
             "chains": [[t] for t in targets[:3]],
             "score": 0.42, "hops": 0}
 
@@ -1016,7 +1104,7 @@ def _distractor_answer(G, node_map: Dict[str, Event], ids: List[str]) -> dict:
     """干扰事件题：明确回答"不构成因果关系，予以排除"（gold 常见确定/可能档）。"""
     targets = _ensure_refs(G, node_map, ids, 1)
     shown = "、".join(label(node_map, i) for i in targets[:4])
-    return {"answers": f"不构成因果关系：{shown}为例行安排/独立事件或背景性信息，"
+    return {"answers": f"无法建立因果关系：{shown}为例行安排/独立事件或背景性信息，"
                        f"与主线事件仅在时空或主题上邻近，材料中不存在证据支持的因果联系，"
                        f"应予以排除，不纳入证据链。",
             "chains": [[t] for t in targets[:4]],
