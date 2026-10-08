@@ -27,10 +27,21 @@ from src.common.schemas import CausalGraph, CausalRelation, Event, Query  # noqa
 from src.graph import build_graph, to_networkx  # noqa: E402
 from src.reasoning import answer_query  # noqa: E402
 from src.reasoning import graph_algorithms as ga  # noqa: E402
+from src.competition.dataset import QUESTIONS_FILE, load_pack  # noqa: E402
+from src.competition.runner import prepare_pack_graph  # noqa: E402
+from src.competition.answering import answer_one  # noqa: E402
 
 STATIC_DIR = os.path.join(BASE, "web", "static")
 TESTSET_DIR = os.path.join(BASE, "eval", "testset")
 GRAPHS_DIR = os.path.join(BASE, "data", "graphs")
+DATASET_DIR = os.path.join(BASE, "data", "数据集")
+TRAIN_DIR = os.path.join(DATASET_DIR, "训练集")
+SAMPLE_DIR = os.path.join(DATASET_DIR, "抽样测试集_100")
+
+# 竞赛包列表缓存：pack_id -> (pack_name, task, group, question_count)
+_PACK_CACHE = None
+_EVENTS_FILE = "事件列表.json"
+_RELATIONS_FILE = "事件因果关系列表.json"
 
 # 单用户内存态：当前加载的图谱
 CURRENT = {"graph": None, "view": None, "analysis": None, "queries": [], "meta": {}}
@@ -178,6 +189,95 @@ def api_query(question, question_type):
     return 200, ans.to_dict()
 
 
+# ---------------- 竞赛系统（模块1 事件抽取 / 模块2 关系获取 / 模块3 事实推理） ----------------
+def _scan_packs():
+    """扫描竞赛数据包：抽样集 A/B/C 全部 + 训练集小编号包（_0xx）。"""
+    global _PACK_CACHE
+    if _PACK_CACHE is not None:
+        return _PACK_CACHE
+    items = []
+
+    def scan(root_dir, group, train_only_small=False):
+        if not os.path.isdir(root_dir):
+            return
+        for dirpath, _dirs, files in os.walk(root_dir):
+            if QUESTIONS_FILE not in files:
+                continue
+            name = os.path.basename(dirpath)
+            if train_only_small:
+                digits = "".join(ch for ch in name if ch.isdigit())
+                if not digits or int(digits) >= 100:
+                    continue
+            if _RELATIONS_FILE in files:
+                task = "A"
+            elif _EVENTS_FILE in files:
+                task = "B"
+            else:
+                task = "C"
+            try:
+                with open(os.path.join(dirpath, QUESTIONS_FILE), "r",
+                          encoding="utf-8") as f:
+                    qn = len(json.load(f))
+            except Exception:  # noqa: BLE001
+                qn = 0
+            rel = os.path.relpath(dirpath, DATASET_DIR).replace(os.sep, "/")
+            items.append({"id": rel, "name": name, "task": task,
+                          "group": group, "question_count": qn})
+
+    scan(SAMPLE_DIR, "抽样测试集")
+    scan(TRAIN_DIR, "训练集（示例）", train_only_small=True)
+    items.sort(key=lambda x: (x["group"], x["id"]))
+    _PACK_CACHE = items
+    return items
+
+
+def api_comp_packs():
+    return 200, _scan_packs()
+
+
+def api_comp_run(pack_id):
+    if not pack_id:
+        return 400, {"error": "缺少 pack_id"}
+    path = os.path.normpath(os.path.join(DATASET_DIR, *pack_id.split("/")))
+    if not path.startswith(DATASET_DIR) or not os.path.isdir(path):
+        return 404, {"error": f"数据包不存在：{pack_id}"}
+    pack = load_pack(path)
+    graph, events, relations = prepare_pack_graph(pack)
+    doc_text = {d.doc_id: d.text for d in pack.docs}
+    records = [answer_one(graph, q, task=pack.task, doc_text=doc_text)
+               for q in pack.questions]
+    view = to_echarts(graph)
+    analysis = analyze(graph)
+    CURRENT.update(graph=graph, view=view, analysis=analysis, queries=[],
+                   meta={"title": pack.pack_name})
+    refused = sum(1 for r in records if r.get("confidence_level") is None)
+    modules = {
+        "extraction": {
+            "label": "模块1 · 事件抽取",
+            "nodes": len(events),
+            "source": "数据集给定标注" if pack.given_events else "系统抽取（文档→事件）",
+            "active": not pack.given_events,
+        },
+        "relation": {
+            "label": "模块2 · 关系获取",
+            "edges": len(relations),
+            "source": "数据集给定标注" if pack.given_relations else "系统获取（规则因果边）",
+            "active": not pack.given_relations,
+        },
+        "reasoning": {
+            "label": "模块3 · 事实推理",
+            "questions": len(records), "refused": refused,
+            "source": "系统答题引擎", "active": True,
+        },
+    }
+    return 200, {
+        "pack": {"name": pack.pack_name, "task": pack.task,
+                 "doc_count": len(pack.docs), "question_count": len(records)},
+        "modules": modules, "view": view, "analysis": analysis,
+        "answers": records,
+    }
+
+
 # ---------------- HTTP handler ----------------
 class Handler(BaseHTTPRequestHandler):
     server_version = "CausalGraphUI/1.0"
@@ -223,6 +323,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/datasets":
             status, payload = api_datasets()
             return self._send(status, payload)
+        if path == "/api/competition/packs":
+            status, payload = api_comp_packs()
+            return self._send(status, payload)
         if path.startswith("/static/"):
             return self._serve_static(path[len("/static/"):])
         return self._send(404, {"error": "not found"})
@@ -236,6 +339,8 @@ class Handler(BaseHTTPRequestHandler):
             status, payload = api_upload(data.get("graph", {}))
         elif path == "/api/query":
             status, payload = api_query(data.get("question", ""), data.get("question_type", ""))
+        elif path == "/api/competition/run":
+            status, payload = api_comp_run(data.get("pack_id", ""))
         else:
             status, payload = 404, {"error": "not found"}
         return self._send(status, payload)

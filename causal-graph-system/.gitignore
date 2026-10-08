@@ -15,6 +15,8 @@ data/events/
 data/relations/
 data/graphs/
 data/output/
+data/数据集/
+data/赛题*.zip
 models/
 *.pth
 *.ckpt
@@ -25,3 +27,5 @@ events_result.jsonl
 .idea/
 .vscode/
 .DS_Store
+.tmp/
+-w

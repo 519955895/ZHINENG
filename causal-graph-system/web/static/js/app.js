@@ -274,8 +274,121 @@
     highlightChain(ans.evidence_chain || []);
   }
 
+  /* ---------------- 竞赛系统：三模块流水线 ---------------- */
+  const RTYPE_LABEL = {
+    single_hop: "单跳事实",
+    multi_hop_causal: "多跳因果",
+    temporal_causal: "时序因果",
+    grounded_pred: "态势推演",
+    counterfactual: "反事实",
+    unanswerable: "不可答",
+    conflicting_sources: "来源冲突",
+    distractor_robustness: "干扰排除",
+    missing_information: "信息缺失",
+    summary: "综合概括",
+  };
+  const LEVEL_LABEL = {
+    certain: "确定", high: "高", probable: "可能", possible: "低可能", medium: "中",
+  };
+
+  async function loadCompPacks() {
+    const sel = $("#compSelect");
+    const list = await api("/api/competition/packs");
+    let group = null;
+    let og = null;
+    list.forEach((p) => {
+      if (p.group !== group) {
+        group = p.group;
+        og = document.createElement("optgroup");
+        og.label = group;
+        sel.appendChild(og);
+      }
+      const o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = `[${p.task}档] ${p.name} · ${p.question_count}题`;
+      og.appendChild(o);
+    });
+  }
+
+  async function runCompetition() {
+    const packId = $("#compSelect").value;
+    if (!packId) { alert("请先选择一个竞赛数据包。"); return; }
+    const btn = $("#compRunBtn");
+    btn.disabled = true; btn.textContent = "流水线运行中…";
+    try {
+      const data = await api("/api/competition/run", { pack_id: packId });
+      if (data.error) { alert(data.error); return; }
+      applyLoaded(data);
+      renderModules(data);
+      renderCompAnswers(data.answers || []);
+      $("#graphHint").style.display = "none";
+    } finally {
+      btn.disabled = false; btn.textContent = "运行流水线";
+    }
+  }
+
+  function renderModules(data) {
+    const m = data.modules;
+    $("#modulesPanel").hidden = false;
+    $("#packMeta").textContent =
+      `${data.pack.name} · ${data.pack.task}档 · ${data.pack.doc_count}篇文档`;
+    const cards = [
+      { obj: m.extraction, num: m.extraction.nodes, unit: "事件" },
+      { obj: m.relation, num: m.relation.edges, unit: "因果边" },
+      { obj: m.reasoning, num: `${m.reasoning.questions - m.reasoning.refused}/${m.reasoning.questions}`, unit: "作答题" },
+    ];
+    $("#modules").innerHTML = cards.map((c) => `
+      <div class="mod-card ${c.obj.active ? "mod-active" : ""}">
+        <div class="mod-label">${esc(c.obj.label)}</div>
+        <div class="mod-num">${c.num}<span class="mod-unit">${esc(c.unit)}</span></div>
+        <div class="mod-src" title="${esc(c.obj.source)}">${esc(c.obj.source)}</div>
+      </div>`).join("");
+  }
+
+  function nodeName(id) {
+    const n = currentView && currentView.nodes.find((x) => x.id === id);
+    return n ? n.name : id;
+  }
+
+  function renderCompAnswers(records) {
+    $("#compPanel").hidden = false;
+    $("#compCount").textContent = `${records.length} 题`;
+    $("#compAnswers").innerHTML = records.map((r, i) => {
+      const refused = r.confidence_level == null;
+      const level = refused
+        ? '<span class="lvl lvl-none">拒答</span>'
+        : `<span class="lvl lvl-${esc(r.confidence_level)}">${esc(LEVEL_LABEL[r.confidence_level] || r.confidence_level)}</span>`;
+      const chains = (r.evidence_chains || []).map((ch, j) =>
+        `<button class="chain-chip" data-i="${i}" data-j="${j}" title="点击在图中高亮该证据链">` +
+        ch.map((id) => esc(nodeName(id))).join(" → ") + `</button>`).join("");
+      return `<div class="qa-item ${refused ? "qa-refuse" : ""}">
+        <div class="qa-head">
+          <span class="qa-type">${esc(RTYPE_LABEL[r.reasoning_type] || r.reasoning_type)}</span>
+          ${level}
+        </div>
+        <div class="qa-q">${esc(r.question)}</div>
+        <div class="qa-a" data-expand="0">${esc(r.answers || "")}</div>
+        ${chains ? `<div class="qa-chains">${chains}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    $("#compAnswers").querySelectorAll(".qa-a").forEach((el) => {
+      el.onclick = () => {
+        const open = el.dataset.expand === "1";
+        el.dataset.expand = open ? "0" : "1";
+      };
+    });
+    $("#compAnswers").querySelectorAll(".chain-chip").forEach((el) => {
+      el.onclick = () => {
+        const ch = records[+el.dataset.i].evidence_chains[+el.dataset.j] || [];
+        highlightChain(ch);
+      };
+    });
+  }
+
   /* ---------------- 初始化 ---------------- */
   function bind() {
+    $("#compRunBtn").addEventListener("click", runCompetition);
     $("#datasetSelect").addEventListener("change", onDatasetChange);
     $("#uploadBtn").addEventListener("click", () => $("#fileInput").click());
     $("#fileInput").addEventListener("change", onUpload);
@@ -292,6 +405,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     bind();
     loadDatasets();
+    loadCompPacks();
     selectTab("causal_tracing");
     if (typeof echarts === "undefined") {
       $("#graphHint").style.display = "block";

@@ -14,13 +14,19 @@
       <span class="brand-sub">Causal Graph Reasoning</span>
     </div>
     <div class="controls">
-      <label class="ctl-label" for="datasetSelect">数据集</label>
+      <label class="ctl-label" for="compSelect">竞赛数据包</label>
+      <select id="compSelect" class="select select-wide">
+        <option value="">— 选择数据包跑三模块 —</option>
+      </select>
+      <button id="compRunBtn" class="btn btn-primary">运行流水线</button>
+      <span class="ctl-divider"></span>
+      <label class="ctl-label" for="datasetSelect">图谱库</label>
       <select id="datasetSelect" class="select">
-        <option value="">— 选择预置数据集 —</option>
+        <option value="">— 预置图谱 —</option>
       </select>
       <button id="uploadBtn" class="btn btn-ghost">导入图谱</button>
       <input type="file" id="fileInput" accept=".json,application/json" hidden />
-      <button id="analyzeBtn" class="btn btn-primary">分析 / 重置</button>
+      <button id="analyzeBtn" class="btn btn-ghost">分析 / 重置</button>
     </div>
   </header>
 
@@ -38,6 +44,15 @@
 
     <!-- 右：分析 / 操作 / 结果 -->
     <aside class="sidebar">
+      <!-- 三模块流水线状态 -->
+      <section class="panel" id="modulesPanel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">三模块流水线</span>
+          <span id="packMeta" class="panel-meta"></span>
+        </div>
+        <div id="modules" class="mod-grid"></div>
+      </section>
+
       <!-- 分析 -->
       <section class="panel">
         <div class="panel-head"><span class="panel-title">图谱分析</span></div>
@@ -69,6 +84,15 @@
         <div id="result" class="result">
           <div class="empty">运行推理后在此展示结果</div>
         </div>
+      </section>
+
+      <!-- 竞赛问答 -->
+      <section class="panel" id="compPanel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">事实推理 · 逐题答案</span>
+          <span id="compCount" class="panel-meta"></span>
+        </div>
+        <div id="compAnswers" class="comp-list"></div>
       </section>
     </aside>
   </main>

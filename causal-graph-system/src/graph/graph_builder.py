@@ -1,18 +1,15 @@
 """模块3 主接口：由事件 + 因果对构建因果图谱。
 
-成员 C 请在此实现核心逻辑：
-    build_graph(events, relations) -> CausalGraph
-    to_networkx(graph) -> nx.DiGraph   （供推理问答做路径检索）
-
-推荐实现要点：
-1. 节点去重/归一化：同一事件可能被多次抽取，需按 mention 相似度合并；
-2. 边构建：把 CausalRelation 转成有向边，处理冲突边（多策略见 config）；
-3. 提供 networkx 视图：图遍历、最短路径、可达性、强连通分量等算法都基于它；
-4. 元信息：统计节点数/边数/密度，便于后续诊断与可视化。
+实现要点：
+1. 节点去重/归一化：同 event_id 合并，字段尽量保留信息更丰富的一版；
+2. 边构建：把 CausalRelation 转成有向边，丢弃悬空边（端点不存在），
+   合并重复边（保留置信度更高者），双向冲突时保留高置信边；
+3. networkx 视图：供推理模块做路径检索、可达性、中心性等计算；
+4. 元信息：节点数/边数/密度。
 """
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List
 
 from ..common.schemas import CausalGraph, CausalRelation, Event
 
@@ -22,18 +19,83 @@ except ImportError:  # pragma: no cover
     nx = None
 
 
+def _merge_events(events: List[Event]) -> List[Event]:
+    """同 event_id 去重：保留信息更丰富（论元/触发词更多）的事件。"""
+    merged: Dict[str, Event] = {}
+    order: List[str] = []
+    for e in events:
+        if e.event_id not in merged:
+            merged[e.event_id] = e
+            order.append(e.event_id)
+            continue
+        old = merged[e.event_id]
+        # 以"信息量"决定主记录，缺失字段用另一条补全
+        primary, secondary = (e, old) if (
+            len(e.arguments) > len(old.arguments)
+            or (len(e.arguments) == len(old.arguments) and len(e.mention) > len(old.mention))
+        ) else (old, e)
+        if not primary.trigger and secondary.trigger:
+            primary.trigger = secondary.trigger
+        if not primary.event_type and secondary.event_type:
+            primary.event_type = secondary.event_type
+        if not primary.time and secondary.time:
+            primary.time = secondary.time
+        if not primary.location and secondary.location:
+            primary.location = secondary.location
+        primary.confidence = max(primary.confidence or 0.0, secondary.confidence or 0.0)
+        merged[e.event_id] = primary
+    return [merged[k] for k in order]
+
+
 def build_graph(events: List[Event], relations: List[CausalRelation]) -> CausalGraph:
     """把事件节点与因果边组装为因果图。
 
     Args:
         events: 事件列表（作为节点）。
-        relations: 因果对列表（作为有向边）。
+        relations: 因果对列表（作为有向边，方向 cause -> effect）。
 
     Returns:
-        CausalGraph，graph_id 建议 "G" + 时间戳或自增序号。
+        CausalGraph；悬空边与重复边已清洗，冲突边按置信度取舍。
     """
-    # TODO(成员 C)：替换为真实建图逻辑（含节点去重、冲突边处理）。
-    raise NotImplementedError("build_graph 尚未实现，请成员 C 在 graph_builder.py 中完成。")
+    nodes = _merge_events(list(events))
+    node_ids = {n.event_id for n in nodes}
+
+    # 清洗 + 去重 + 冲突处理
+    edge_map: Dict[tuple, CausalRelation] = {}
+    for r in relations:
+        if r.cause_event_id not in node_ids or r.effect_event_id not in node_ids:
+            continue
+        if r.cause_event_id == r.effect_event_id:
+            continue
+        key = (r.cause_event_id, r.effect_event_id)
+        if key not in edge_map or (r.confidence or 0) > (edge_map[key].confidence or 0):
+            edge_map[key] = r
+
+    # 双向冲突：若 A->B 与 B->A 同时出现，保留置信度更高的一边
+    pruned: Dict[tuple, CausalRelation] = {}
+    for key, r in edge_map.items():
+        rev = (key[1], key[0])
+        if rev in edge_map and (r.confidence or 0) < (edge_map[rev].confidence or 0):
+            continue
+        pruned[key] = r
+
+    valid_edges = list(pruned.values())
+    # 重排 relation_id，保证可读、唯一
+    for i, e in enumerate(valid_edges, 1):
+        if not e.relation_id:
+            e.relation_id = f"R{i:03d}"
+
+    graph = CausalGraph(
+        graph_id="G001",
+        nodes=nodes,
+        edges=valid_edges,
+        metadata={
+            "node_count": len(nodes),
+            "edge_count": len(valid_edges),
+            "note": "节点=事件，边=因果对，方向 cause -> effect；已去重并清洗悬空/冲突边",
+        },
+    )
+    return graph
 
 
 def to_networkx(graph: CausalGraph):
